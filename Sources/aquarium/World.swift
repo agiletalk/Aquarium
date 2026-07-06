@@ -70,6 +70,23 @@ struct Weed {
     var phase: Double
 }
 
+struct Snail {
+    var x: Double
+    var dir: Double
+    var pauseUntil: Double = 0
+}
+
+enum CrabMode {
+    case walking, pausing, waving
+}
+
+struct Crab {
+    var x: Double
+    var dir: Double
+    var mode: CrabMode = .walking
+    var modeUntil: Double = 0
+}
+
 struct Jellyfish {
     var x: Double
     var y: Double
@@ -93,6 +110,8 @@ final class World {
     var food: [Food] = []
     var weeds: [Weed] = []
     var jellyfish: [Jellyfish] = []
+    var snails: [Snail] = []
+    var crabs: [Crab] = []
 
     private var chestX: Int? // left column of the chest; nil when the tank is too narrow
     private var chestOpenUntil: Double = 0
@@ -135,6 +154,7 @@ final class World {
         plantWeeds()
         placeChest()
         spawnJellyfish()
+        spawnCleanupCrew()
         if let save, !save.fish.isEmpty {
             restore(save)
         } else {
@@ -151,6 +171,7 @@ final class World {
             plantWeeds()
             placeChest()
             spawnJellyfish()
+            spawnCleanupCrew()
         }
         for i in fish.indices { clampToTank(&fish[i]) }
         food.removeAll { $0.x >= Double(cols - 1) }
@@ -301,6 +322,15 @@ final class World {
         }
     }
 
+    private func spawnCleanupCrew() {
+        snails = cols >= 40
+            ? [Snail(x: Double.random(in: 3...Double(cols - 4)), dir: Bool.random() ? 1 : -1)]
+            : []
+        crabs = cols >= 50
+            ? [Crab(x: Double.random(in: 2...Double(cols - 10)), dir: Bool.random() ? 1 : -1)]
+            : []
+    }
+
     private func spawnAdult() {
         let species = Int.random(in: 1..<allSpecies.count)
         var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
@@ -369,6 +399,7 @@ final class World {
         updateBubbles(now)
         updateJellyfish(now)
         updateChest(now)
+        updateCleanupCrew(now)
 
         // The tank slowly fills up on its own; feeding just speeds it along.
         if now >= nextBreed {
@@ -456,7 +487,7 @@ final class World {
             }
         }
         food.removeAll { resting in
-            if let since = resting.restingSince { return now - since > 10 }
+            if let since = resting.restingSince { return now - since > 25 }
             return false
         }
     }
@@ -518,6 +549,69 @@ final class World {
         }
     }
 
+    private func updateCleanupCrew(_ now: Double) {
+        // Snail: a slow, purposeful janitor heading for sunken food
+        for i in snails.indices {
+            var s = snails[i]
+            defer { snails[i] = s }
+            guard now >= s.pauseUntil else { continue }
+
+            let target = food
+                .filter { $0.restingSince != nil }
+                .min(by: { abs($0.x - s.x) < abs($1.x - s.x) })
+            if let target {
+                if abs(target.x - s.x) > 0.8 { s.dir = target.x > s.x ? 1 : -1 }
+            } else {
+                if Double.random(in: 0...1) < 0.005 { s.dir = -s.dir }
+                if Double.random(in: 0...1) < 0.004 { s.pauseUntil = now + Double.random(in: 1...4) }
+            }
+            s.x += s.dir * 0.05
+            s.x = min(max(1.5, s.x), Double(cols - 3))
+
+            for fi in food.indices.reversed()
+            where food[fi].restingSince != nil && abs(food[fi].x - s.x) < 1.2 {
+                food.remove(at: fi)
+                bubbles.append(Bubble(x: s.x, y: Double(sandRow - 2),
+                                      phase: Double.random(in: 0...(2 * .pi)),
+                                      speed: Double.random(in: 0.15...0.25)))
+            }
+        }
+
+        // Crab: sideways scuttle, snack breaks, occasional claw waving
+        for i in crabs.indices {
+            var c = crabs[i]
+            defer { crabs[i] = c }
+
+            if now >= c.modeUntil {
+                switch c.mode {
+                case .walking:
+                    if Double.random(in: 0...1) < 0.5 {
+                        c.mode = .pausing
+                        c.modeUntil = now + Double.random(in: 1...3)
+                    } else {
+                        c.mode = .waving
+                        c.modeUntil = now + Double.random(in: 1.5...3)
+                    }
+                case .pausing, .waving:
+                    c.mode = .walking
+                    c.modeUntil = now + Double.random(in: 3...8)
+                    if Bool.random() { c.dir = -c.dir }
+                }
+            }
+
+            guard c.mode == .walking else { continue }
+            c.x += c.dir * 0.15
+            let maxX = Double(max(2, cols - 9)) // art is 7 wide
+            if c.x <= 1.5 { c.x = 1.5; c.dir = 1 }
+            if c.x >= maxX { c.x = maxX; c.dir = -1 }
+
+            for fi in food.indices.reversed()
+            where food[fi].restingSince != nil && abs(food[fi].x - (c.x + 3)) < 2 {
+                food.remove(at: fi)
+            }
+        }
+    }
+
     // MARK: - Rendering
 
     func render() -> String {
@@ -536,6 +630,7 @@ final class World {
         drawBubbles(&grid)
         drawJellyfish(&grid, now)
         drawFish(&grid)
+        drawCleanupCrew(&grid)
 
         var out = ANSI.home
         var lastColor: UInt8 = 0
@@ -735,6 +830,34 @@ final class World {
                 if r >= swimMinRow, c > 0, c < cols - 1, grid[r][c].ch == " " {
                     grid[r][c] = Cell(ch: "z", color: 250)
                 }
+            }
+        }
+    }
+
+    private func drawCleanupCrew(_ grid: inout [[Cell]]) {
+        let r = sandRow - 1
+        guard r >= swimMinRow else { return }
+
+        for s in snails {
+            let c = Int(s.x.rounded())
+            if c > 0, c < cols - 1 {
+                grid[r][c] = Cell(ch: "@", color: 180)
+            }
+        }
+
+        for crab in crabs {
+            let art: [Character]
+            switch crab.mode {
+            case .waving:
+                art = (tick / 4) % 2 == 0 ? Array("Y(;,;)v") : Array("v(;,;)Y")
+            default:
+                art = Array("v(;,;)v")
+            }
+            let startC = Int(crab.x.rounded())
+            for (i, ch) in art.enumerated() {
+                let c = startC + i
+                guard c > 0, c < cols - 1 else { continue }
+                grid[r][c] = Cell(ch: ch, color: 209)
             }
         }
     }
