@@ -65,6 +65,20 @@ struct Weed {
     var phase: Double
 }
 
+struct Jellyfish {
+    var x: Double
+    var y: Double
+    var vy: Double = 0
+    var phase: Double
+    var driftSeed: Double
+
+    // Pulse cycle: contract (jet upward) then relax (drift down)
+    func isContracted(at now: Double) -> Bool {
+        let cycle = 2.6
+        return (now + phase).truncatingRemainder(dividingBy: cycle) / cycle < 0.35
+    }
+}
+
 final class World {
     private(set) var cols: Int
     private(set) var rows: Int
@@ -73,6 +87,11 @@ final class World {
     var bubbles: [Bubble] = []
     var food: [Food] = []
     var weeds: [Weed] = []
+    var jellyfish: [Jellyfish] = []
+
+    private var chestX: Int? // left column of the chest; nil when the tank is too narrow
+    private var chestOpenUntil: Double = 0
+    private var chestNextOpen: Double = 0
 
     private var message = ""
     private var messageUntil: Double = 0
@@ -98,6 +117,8 @@ final class World {
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: 15...25)
         plantWeeds()
+        placeChest()
+        spawnJellyfish()
         for _ in 0..<5 { spawnAdult() }
     }
 
@@ -105,7 +126,11 @@ final class World {
         let colsChanged = cols != self.cols
         self.cols = cols
         self.rows = rows
-        if colsChanged { plantWeeds() }
+        if colsChanged {
+            plantWeeds()
+            placeChest()
+            spawnJellyfish()
+        }
         for i in fish.indices { clampToTank(&fish[i]) }
         food.removeAll { $0.x >= Double(cols - 1) }
         bubbles.removeAll { $0.x >= Double(cols - 1) }
@@ -123,6 +148,28 @@ final class World {
                               height: Int.random(in: 2...maxHeight),
                               phase: Double.random(in: 0...(2 * .pi))))
             x += Int.random(in: 5...11)
+        }
+    }
+
+    private func placeChest() {
+        guard cols >= 44, sandRow - 2 >= swimMinRow else {
+            chestX = nil
+            return
+        }
+        chestX = Int.random(in: 4...(cols - 12))
+        chestNextOpen = now + Double.random(in: 5...12)
+        chestOpenUntil = 0
+    }
+
+    private func spawnJellyfish() {
+        jellyfish = []
+        let count = cols >= 70 ? 2 : (cols >= 40 ? 1 : 0)
+        for _ in 0..<count {
+            jellyfish.append(Jellyfish(
+                x: Double.random(in: 2...Double(max(3, cols - 8))),
+                y: Double.random(in: Double(swimMinRow)...Double(max(swimMinRow, swimMaxRow - 1))),
+                phase: Double.random(in: 0...(2 * .pi)),
+                driftSeed: Double.random(in: 0...(2 * .pi))))
         }
     }
 
@@ -183,6 +230,8 @@ final class World {
         updateFish(now)
         updateFood(now)
         updateBubbles(now)
+        updateJellyfish(now)
+        updateChest(now)
 
         // The tank slowly fills up on its own; feeding just speeds it along.
         if now >= nextBreed {
@@ -287,6 +336,46 @@ final class World {
         }
     }
 
+    private func updateJellyfish(_ now: Double) {
+        for i in jellyfish.indices {
+            var j = jellyfish[i]
+            j.vy += j.isContracted(at: now) ? -0.018 : 0.010
+            j.vy = max(-0.15, min(0.1, j.vy))
+            j.y += j.vy
+            j.x += sin(now * 0.4 + j.driftSeed) * 0.06
+
+            let minY = Double(swimMinRow)
+            let maxY = Double(max(swimMinRow, swimMaxRow - 1)) // two rows tall
+            if j.y < minY { j.y = minY; j.vy = 0.05 }
+            if j.y > maxY { j.y = maxY; j.vy = -0.05 }
+            j.x = min(max(1, j.x), Double(max(1, cols - 7)))
+            jellyfish[i] = j
+        }
+    }
+
+    private func updateChest(_ now: Double) {
+        guard let cx = chestX else { return }
+
+        if now >= chestOpenUntil, now >= chestNextOpen {
+            chestOpenUntil = now + Double.random(in: 2...3.5)
+            chestNextOpen = now + Double.random(in: 10...18)
+            // The lid popping open startles fish loitering near the bottom.
+            let center = Double(cx) + 3
+            for i in fish.indices where abs(fish[i].x - center) < 12
+                && fish[i].y > Double(swimMaxRow - 6) {
+                fish[i].dir = fish[i].x < center ? -1 : 1
+                fish[i].vy = -0.3
+            }
+        }
+
+        if now < chestOpenUntil, Double.random(in: 0...1) < 0.5 {
+            bubbles.append(Bubble(x: Double(cx) + Double.random(in: 1.5...4.5),
+                                  y: Double(sandRow - 3),
+                                  phase: Double.random(in: 0...(2 * .pi)),
+                                  speed: Double.random(in: 0.2...0.4)))
+        }
+    }
+
     // MARK: - Rendering
 
     func render() -> String {
@@ -300,8 +389,10 @@ final class World {
 
         drawTank(&grid, now)
         drawWeeds(&grid, now)
+        drawChest(&grid, now)
         drawFood(&grid)
         drawBubbles(&grid)
+        drawJellyfish(&grid, now)
         drawFish(&grid)
 
         var out = ANSI.home
@@ -371,6 +462,49 @@ final class World {
                 let sway = Int(now * 2 + weed.phase) + i
                 grid[r][weed.x] = Cell(ch: sway % 2 == 0 ? "(" : ")",
                                        color: i % 2 == 0 ? 28 : 40)
+            }
+        }
+    }
+
+    private func drawChest(_ grid: inout [[Cell]], _ now: Double) {
+        guard let cx = chestX else { return }
+        let topRow = sandRow - 2, bottomRow = sandRow - 1
+        guard topRow >= swimMinRow else { return }
+
+        let isOpen = now < chestOpenUntil
+        let top: [Character] = isOpen ? Array("\\****/") : Array(" ____ ")
+        let bottom: [Character] = Array("[____]")
+        let goldShimmer: [UInt8] = [220, 226, 214]
+
+        for (i, ch) in top.enumerated() where ch != " " {
+            let c = cx + i
+            guard c > 0, c < cols - 1 else { continue }
+            let color: UInt8 = ch == "*" ? goldShimmer[(tick / 2 + i) % goldShimmer.count] : 130
+            grid[topRow][c] = Cell(ch: ch, color: color)
+        }
+        for (i, ch) in bottom.enumerated() {
+            let c = cx + i
+            guard c > 0, c < cols - 1 else { continue }
+            grid[bottomRow][c] = Cell(ch: ch, color: 130)
+        }
+    }
+
+    private func drawJellyfish(_ grid: inout [[Cell]], _ now: Double) {
+        for j in jellyfish {
+            let art: [[Character]] = j.isContracted(at: now)
+                ? [Array(" (_) "), Array("  |  ")]
+                : [Array("(___)"), Array(" )|( ")]
+            let bellColor: UInt8 = [183, 189, 177][(tick / 4) % 3] // translucent shimmer
+            let startR = Int(j.y.rounded())
+            let startC = Int(j.x.rounded())
+            for (ri, rowArt) in art.enumerated() {
+                let r = startR + ri
+                guard r >= swimMinRow, r <= swimMaxRow else { continue }
+                for (ci, ch) in rowArt.enumerated() where ch != " " {
+                    let c = startC + ci
+                    guard c > 0, c < cols - 1 else { continue }
+                    grid[r][c] = Cell(ch: ch, color: ri == 0 ? bellColor : 146)
+                }
             }
         }
     }
