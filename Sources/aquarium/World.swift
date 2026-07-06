@@ -178,14 +178,15 @@ final class World {
             fish.append(f)
         }
 
-        // Births that happened while the tank was away
+        // Births that happened while the tank was away (at most 3 per absence)
+        let maxOfflineBirths = 3
         var away = max(0, Date().timeIntervalSince1970 - save.savedAt)
         var remaining = max(1, save.breedRemaining)
         var bornAges: [Double] = []
         while away >= remaining {
             away -= remaining
             remaining = Double.random(in: 180...300)
-            if fish.count + bornAges.count < maxFish {
+            if bornAges.count < maxOfflineBirths, fish.count + bornAges.count < maxFish {
                 bornAges.append(away) // seconds this fish has already lived
             }
         }
