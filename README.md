@@ -4,7 +4,18 @@
 
 ![어항 데모 — 물고기들이 헤엄치고, 먹이를 주면 몰려들고, 아기 물고기가 태어납니다](demo.gif)
 
-## 실행
+## 설치
+
+### 미리 빌드된 바이너리 (Swift 불필요, macOS 전용)
+
+Apple Silicon과 Intel Mac을 모두 지원하는 유니버설 바이너리입니다:
+
+```sh
+curl -L https://github.com/agiletalk/Aquarium/releases/latest/download/aquarium.tar.gz | tar xz
+./aquarium
+```
+
+### 소스에서 빌드 (Swift 5.9+)
 
 ```sh
 swift run -c release
