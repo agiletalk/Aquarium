@@ -45,6 +45,43 @@ final class Terminal {
         }
     }
 
+    /// Asks the terminal for its background color via OSC 11.
+    /// Returns nil when the terminal doesn't reply (e.g. piped stdin, old emulators).
+    /// Call before the main loop starts so the reply can't be mistaken for keystrokes.
+    func backgroundIsDark() -> Bool? {
+        guard rawEnabled else { return nil }
+        fputs("\u{1B}]11;?\u{07}", stdout)
+        fflush(stdout)
+
+        var bytes: [UInt8] = []
+        let deadline = ProcessInfo.processInfo.systemUptime + 0.3
+        while ProcessInfo.processInfo.systemUptime < deadline {
+            var chunk = [UInt8](repeating: 0, count: 64)
+            let n = read(STDIN_FILENO, &chunk, chunk.count)
+            if n > 0 {
+                bytes.append(contentsOf: chunk[0..<n])
+                // Reply ends with BEL or ST (ESC \)
+                if bytes.contains(7) || Array(bytes.suffix(2)) == [0x1B, 0x5C] { break }
+            } else {
+                usleep(10_000)
+            }
+        }
+
+        guard let reply = String(bytes: bytes, encoding: .utf8),
+              let start = reply.range(of: "rgb:") else { return nil }
+        let channels = reply[start.upperBound...]
+            .split(separator: "/")
+            .prefix(3)
+            .map { component -> Double in
+                let hex = component.prefix { $0.isHexDigit }
+                guard !hex.isEmpty, let value = UInt32(String(hex), radix: 16) else { return 0 }
+                return Double(value) / (pow(16, Double(hex.count)) - 1)
+            }
+        guard channels.count == 3 else { return nil }
+        let luminance = 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]
+        return luminance < 0.5
+    }
+
     func readKeys() -> [Character] {
         var buf = [UInt8](repeating: 0, count: 16)
         let n = read(STDIN_FILENO, &buf, buf.count)

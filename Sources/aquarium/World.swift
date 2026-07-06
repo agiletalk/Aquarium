@@ -3,6 +3,11 @@ import Foundation
 struct Cell {
     var ch: Character = " "
     var color: UInt8 = 252
+    var glow: Bool = false // glowing cells skip night-time dimming
+}
+
+enum Lighting: String {
+    case auto, day, night
 }
 
 struct Species {
@@ -96,8 +101,17 @@ final class World {
     private var message = ""
     private var messageUntil: Double = 0
     private let startTime: Double
-    private var nextBreed: Double
+    private var nextBreed: Double = 0
     private var tick = 0
+
+    private(set) var lighting: Lighting = .auto
+    private let terminalDark: Bool?   // OSC 11 answer captured at startup
+    private var envNight = false      // auto-mode verdict, refreshed periodically
+    private var nextEnvCheck: Double = 0
+    private var nextAutosave: Double = 0
+    private var tankBornAt: Double = 0 // wall-clock epoch
+
+    var isNight: Bool { lighting == .night || (lighting == .auto && envNight) }
 
     private var now: Double { ProcessInfo.processInfo.systemUptime }
 
@@ -111,15 +125,22 @@ final class World {
 
     private var maxFish: Int { max(8, min(28, cols * rows / 80)) }
 
-    init(cols: Int, rows: Int) {
+    init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil) {
         self.cols = cols
         self.rows = rows
+        self.terminalDark = terminalDark
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: 180...300)
+        tankBornAt = Date().timeIntervalSince1970
         plantWeeds()
         placeChest()
         spawnJellyfish()
-        for _ in 0..<5 { spawnAdult() }
+        if let save, !save.fish.isEmpty {
+            restore(save)
+        } else {
+            for _ in 0..<5 { spawnAdult() }
+        }
+        refreshEnvNight()
     }
 
     func resize(cols: Int, rows: Int) {
@@ -134,6 +155,112 @@ final class World {
         for i in fish.indices { clampToTank(&fish[i]) }
         food.removeAll { $0.x >= Double(cols - 1) }
         bubbles.removeAll { $0.x >= Double(cols - 1) }
+    }
+
+    // MARK: - Persistence
+
+    private func restore(_ save: SaveState) {
+        let now = self.now
+        tankBornAt = save.tankBornAt
+        lighting = Lighting(rawValue: save.lighting) ?? .auto
+
+        for state in save.fish {
+            let species = min(max(0, state.species), allSpecies.count - 1)
+            var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
+                         y: Double.random(in: Double(swimMinRow)...Double(max(swimMinRow, swimMaxRow))),
+                         dir: Bool.random() ? 1 : -1,
+                         speed: state.speed,
+                         species: species,
+                         color: state.color)
+            f.eaten = state.eaten
+            f.growAt = state.growRemaining.map { now + $0 }
+            clampToTank(&f)
+            fish.append(f)
+        }
+
+        // Births that happened while the tank was away
+        var away = max(0, Date().timeIntervalSince1970 - save.savedAt)
+        var remaining = max(1, save.breedRemaining)
+        var bornAges: [Double] = []
+        while away >= remaining {
+            away -= remaining
+            remaining = Double.random(in: 180...300)
+            if fish.count + bornAges.count < maxFish {
+                bornAges.append(away) // seconds this fish has already lived
+            }
+        }
+        nextBreed = now + (remaining - away)
+
+        for age in bornAges {
+            if age >= 45 {
+                spawnAdult() // already grew up while away
+            } else if let parent = fish.randomElement() {
+                spawnBaby(near: parent)
+            }
+        }
+
+        if bornAges.isEmpty {
+            post("어항에 돌아오신 걸 환영해요! (물고기 \(fish.count)마리)")
+        } else {
+            post("다녀오신 사이 물고기 \(bornAges.count)마리가 태어났어요! (\(fish.count)마리)")
+        }
+    }
+
+    func saveState() -> SaveState {
+        let now = self.now
+        return SaveState(
+            savedAt: Date().timeIntervalSince1970,
+            tankBornAt: tankBornAt,
+            breedRemaining: max(0, nextBreed - now),
+            lighting: lighting.rawValue,
+            fish: fish.map { f in
+                FishState(species: f.species,
+                          color: f.color,
+                          speed: f.speed,
+                          eaten: f.eaten,
+                          growRemaining: f.growAt.map { max(0, $0 - now) })
+            })
+    }
+
+    func writeSave() {
+        SaveStore.write(saveState())
+    }
+
+    // MARK: - Lighting
+
+    func toggleLighting() {
+        switch lighting {
+        case .auto: lighting = .night
+        case .night: lighting = .day
+        case .day: lighting = .auto
+        }
+        refreshEnvNight()
+        switch lighting {
+        case .auto: post("조명: 자동 (지금은 \(isNight ? "밤" : "낮"))")
+        case .night: post("조명: 밤")
+        case .day: post("조명: 낮")
+        }
+    }
+
+    private func refreshEnvNight() {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let nightHours = hour >= 19 || hour < 7
+        let dark = terminalDark ?? World.systemPrefersDark()
+        envNight = dark || nightHours
+    }
+
+    private static func systemPrefersDark() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
+        process.arguments = ["read", "-g", "AppleInterfaceStyle"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do { try process.run() } catch { return false }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return false }
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return output.contains("Dark")
     }
 
     // MARK: - Spawning
@@ -227,6 +354,15 @@ final class World {
         tick += 1
         let now = self.now
 
+        if now >= nextEnvCheck {
+            nextEnvCheck = now + 60
+            refreshEnvNight()
+        }
+        if now >= nextAutosave {
+            nextAutosave = now + 60
+            writeSave()
+        }
+
         updateFish(now)
         updateFood(now)
         updateBubbles(now)
@@ -252,6 +388,11 @@ final class World {
                 if abs(dx) > 1 { f.dir = dx > 0 ? 1 : -1 }
                 f.vy = max(-0.3, min(0.3, (target.y - f.y) * 0.12))
                 f.x += f.dir * f.speed * 1.8
+            } else if isNight {
+                // Sleepy drift: slow, near the bottom, rarely turning
+                if Double.random(in: 0...1) < 0.003 { f.dir = -f.dir }
+                if f.y < Double(swimMaxRow - 2) { f.vy += 0.003 }
+                f.x += f.dir * f.speed * 0.25
             } else {
                 if Double.random(in: 0...1) < 0.01 { f.dir = -f.dir }
                 if Double.random(in: 0...1) < 0.05 { f.vy = Double.random(in: -0.1...0.1) }
@@ -404,15 +545,32 @@ final class World {
                     out.append(" ")
                     continue
                 }
-                if cell.color != lastColor {
-                    out += ANSI.fg(cell.color)
-                    lastColor = cell.color
+                let color = cell.glow ? cell.color : dimmed(cell.color)
+                if color != lastColor {
+                    out += ANSI.fg(color)
+                    lastColor = color
                 }
                 out.append(cell.ch)
             }
         }
         out += "\r\n" + statusLine(now) + "\u{1B}[K"
         return out
+    }
+
+    /// Darkens a 256-color index at night; identity during the day.
+    private func dimmed(_ color: UInt8) -> UInt8 {
+        guard isNight else { return color }
+        switch color {
+        case 16...231: // 6x6x6 color cube: scale each RGB channel down
+            let idx = Int(color) - 16
+            func scale(_ v: Int) -> Int { v == 0 ? 0 : max(1, Int(Double(v) * 0.55)) }
+            let r = scale(idx / 36), g = scale((idx % 36) / 6), b = scale(idx % 6)
+            return UInt8(16 + r * 36 + g * 6 + b)
+        case 232...255: // grayscale ramp
+            return UInt8(max(233, Int(color) - 8))
+        default:
+            return color
+        }
     }
 
     private func drawTank(_ grid: inout [[Cell]], _ now: Double) {
@@ -431,10 +589,26 @@ final class World {
         grid[bottomBorderRow][cols - 1] = Cell(ch: "+", color: frame)
 
         let title = Array(" ~ A Q U A R I U M ~ ")
+        let titleStart = (cols - title.count) / 2
+
+        if isNight {
+            // Stars and a moon along the tank rim
+            for c in 1..<(cols - 1) {
+                let h = Int((UInt(c) &* 40_503) % 100)
+                guard h < 9 else { continue }
+                if cols > title.count + 4, c >= titleStart - 1, c <= titleStart + title.count { continue }
+                let twinkle = ((tick / 6) + c) % 3 == 0
+                grid[0][c] = Cell(ch: twinkle ? "*" : ".", color: twinkle ? 230 : 244, glow: true)
+            }
+            let moonCol = max(2, cols / 8)
+            if moonCol < cols - 1 {
+                grid[0][moonCol] = Cell(ch: "O", color: 223, glow: true)
+            }
+        }
+
         if cols > title.count + 4 {
-            let start = (cols - title.count) / 2
             for (i, ch) in title.enumerated() {
-                grid[0][start + i] = Cell(ch: ch, color: 45)
+                grid[0][titleStart + i] = Cell(ch: ch, color: 45)
             }
         }
 
@@ -494,7 +668,10 @@ final class World {
             let art: [[Character]] = j.isContracted(at: now)
                 ? [Array(" (_) "), Array("  |  ")]
                 : [Array("(___)"), Array(" )|( ")]
-            let bellColor: UInt8 = [183, 189, 177][(tick / 4) % 3] // translucent shimmer
+            // Bioluminescence: jellyfish glow teal at night instead of dimming
+            let bellColor: UInt8 = isNight
+                ? [51, 87, 123][(tick / 4) % 3]
+                : [183, 189, 177][(tick / 4) % 3] // translucent shimmer
             let startR = Int(j.y.rounded())
             let startC = Int(j.x.rounded())
             for (ri, rowArt) in art.enumerated() {
@@ -503,7 +680,9 @@ final class World {
                 for (ci, ch) in rowArt.enumerated() where ch != " " {
                     let c = startC + ci
                     guard c > 0, c < cols - 1 else { continue }
-                    grid[r][c] = Cell(ch: ch, color: ri == 0 ? bellColor : 146)
+                    grid[r][c] = Cell(ch: ch,
+                                      color: ri == 0 ? bellColor : (isNight ? 45 : 146),
+                                      glow: isNight)
                 }
             }
         }
@@ -546,16 +725,35 @@ final class World {
                 grid[r][c] = Cell(ch: ch, color: color)
             }
         }
+
+        if isNight {
+            // Sleeping fish exhale a little "z" now and then
+            for (i, f) in fish.enumerated() where ((tick / 18) + i) % 7 == 0 {
+                let r = Int(f.y.rounded()) - 1
+                let c = Int(f.mouthX.rounded())
+                if r >= swimMinRow, c > 0, c < cols - 1, grid[r][c].ch == " " {
+                    grid[r][c] = Cell(ch: "z", color: 250)
+                }
+            }
+        }
     }
 
     private func statusLine(_ now: Double) -> String {
         let elapsed = Int(now - startTime)
         let timeStr = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
+        let days = max(1, Int((Date().timeIntervalSince1970 - tankBornAt) / 86400) + 1)
+        let modeLabel: String
+        switch lighting {
+        case .auto: modeLabel = isNight ? "밤·자동" : "낮·자동"
+        case .night: modeLabel = "밤"
+        case .day: modeLabel = "낮"
+        }
         let sep = ANSI.fg(240) + "  |  "
         var line = ANSI.fg(51) + " 물고기 \(fish.count)마리"
             + sep + ANSI.fg(214) + "먹이 \(food.count)"
-            + sep + ANSI.fg(250) + timeStr
-            + sep + ANSI.fg(245) + "[f] 먹이 주기  [q] 종료"
+            + sep + ANSI.fg(250) + "\(days)일째 \(timeStr)"
+            + sep + ANSI.fg(147) + modeLabel
+            + sep + ANSI.fg(245) + "[f] 먹이  [n] 조명  [q] 종료"
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }
