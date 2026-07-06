@@ -6,6 +6,13 @@
 
 ## 설치
 
+### Homebrew (권장)
+
+```sh
+brew install agiletalk/tap/aquarium
+aquarium
+```
+
 ### 미리 빌드된 바이너리 (Swift 불필요, macOS 전용)
 
 Apple Silicon과 Intel Mac을 모두 지원하는 유니버설 바이너리입니다:
