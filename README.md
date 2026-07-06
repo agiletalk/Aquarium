@@ -46,6 +46,24 @@ swift build -c release
 | 마우스 클릭 | 물고기 만지기 — "○○를 만졌어요!" 뽁 소리와 함께 화들짝 도망갑니다 |
 | `q` / `Ctrl-C` | 종료 (어항 자동 저장) |
 
+## 어항 요약 한 줄 (`--status`)
+
+어항을 켜지 않고도 상태를 확인할 수 있습니다:
+
+```sh
+$ aquarium --status
+><> 12마리 · 7일째 · 다음 탄생까지 2분
+```
+
+tmux 상태바에 어항을 넣으려면 `~/.tmux.conf`에:
+
+```
+set -g status-right '#(aquarium --status)'
+set -g status-interval 60
+```
+
+`--help`, `--version`도 지원합니다.
+
 ## 구경 포인트
 
 - 물고기마다 색과 종이 다릅니다. 줄무늬 열대어(`><|||°>`)도 있어요.
