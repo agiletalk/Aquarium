@@ -115,7 +115,7 @@ final class World {
         self.cols = cols
         self.rows = rows
         startTime = ProcessInfo.processInfo.systemUptime
-        nextBreed = startTime + Double.random(in: 15...25)
+        nextBreed = startTime + Double.random(in: 180...300)
         plantWeeds()
         placeChest()
         spawnJellyfish()
@@ -235,7 +235,7 @@ final class World {
 
         // The tank slowly fills up on its own; feeding just speeds it along.
         if now >= nextBreed {
-            nextBreed = now + Double.random(in: 22...38)
+            nextBreed = now + Double.random(in: 180...300)
             if fish.count < maxFish, let parent = fish.randomElement() {
                 spawnBaby(near: parent)
                 post("아기 물고기가 태어났어요! (\(fish.count)마리)")
@@ -271,7 +271,7 @@ final class World {
                 if abs(food[fi].x - f.mouthX) < 2.0, abs(food[fi].y - f.y) < 1.3 {
                     food.remove(at: fi)
                     f.eaten += 1
-                    nextBreed -= 1.5 // well-fed tanks grow faster
+                    nextBreed -= 10 // well-fed tanks grow faster
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))
