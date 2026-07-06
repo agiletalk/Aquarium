@@ -18,7 +18,7 @@ Show
 # 자동 → 밤 → 낮: 두 번 눌러 낮으로 고정 (4초쯤 고래 등장)
 Type "nn"
 Sleep 5s
-Type "f"
+Type "g"
 Sleep 5s
 
 # 도감 패널

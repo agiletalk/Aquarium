@@ -36,6 +36,8 @@ mainLoop: while true {
             switch key {
             case "f", "F":
                 world.feed()
+            case "g", "G":
+                world.feedLive()
             case "n", "N":
                 world.toggleLighting()
             case "i", "I":

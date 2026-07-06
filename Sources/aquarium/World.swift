@@ -93,6 +93,14 @@ struct Weed {
     var phase: Double
 }
 
+struct Shrimp {
+    var x: Double
+    var y: Double
+    var vx: Double
+    var vy: Double
+    var bornAt: Double
+}
+
 enum VisitorKind: String, CaseIterable {
     case whale, turtle, octopus
 
@@ -155,6 +163,7 @@ final class World {
     var jellyfish: [Jellyfish] = []
     var snails: [Snail] = []
     var crabs: [Crab] = []
+    var shrimp: [Shrimp] = []
     var visitor: Visitor?
     private var inkCloud: (x: Double, y: Double, bornAt: Double)?
     private var nextVisitorAt: Double = 0
@@ -467,6 +476,21 @@ final class World {
         rosterOpen.toggle()
     }
 
+    /// Live food: a school of brine shrimp that actively flees the fish.
+    func feedLive() {
+        guard cols > 12, shrimp.count < 30 else { return }
+        let now = self.now
+        let originX = Double.random(in: 4...Double(cols - 5))
+        for _ in 0..<Int.random(in: 6...10) {
+            shrimp.append(Shrimp(x: originX + Double.random(in: -2...2),
+                                 y: Double(surfaceRow) + 1 + Double.random(in: 0...1.5),
+                                 vx: Double.random(in: -0.3...0.3),
+                                 vy: Double.random(in: 0.05...0.2),
+                                 bornAt: now))
+        }
+        post("브라인슈림프를 풀었어요! 사냥 개시!")
+    }
+
     /// Handles a mouse click at 0-based grid coordinates.
     func touch(col: Int, row: Int) {
         if rosterOpen {
@@ -519,6 +543,7 @@ final class World {
 
         updateFish(now)
         updateFood(now)
+        updateShrimp(now)
         updateBubbles(now)
         updateJellyfish(now)
         updateChest(now)
@@ -542,7 +567,7 @@ final class World {
             if now < f.panicUntil {
                 // Touched! Dart away from the finger
                 f.x += f.dir * f.speed * 3.5
-            } else if let target = nearestFood(for: f) {
+            } else if let target = nearestPrey(for: f) {
                 let dx = target.x - f.mouthX
                 if abs(dx) > 1 { f.dir = dx > 0 ? 1 : -1 }
                 f.vy = max(-0.3, min(0.3, (target.y - f.y) * 0.12))
@@ -579,6 +604,18 @@ final class World {
                 }
             }
 
+            for si in shrimp.indices.reversed() {
+                if abs(shrimp[si].x - f.mouthX) < 1.5, abs(shrimp[si].y - f.y) < 1.2 {
+                    shrimp.remove(at: si)
+                    f.eaten += 1
+                    nextBreed -= 15 // live food is extra nutritious
+                    bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
+                                          phase: Double.random(in: 0...(2 * .pi)),
+                                          speed: Double.random(in: 0.2...0.35)))
+                    break
+                }
+            }
+
             if Double.random(in: 0...1) < 0.008 {
                 bubbles.append(Bubble(x: f.mouthX, y: f.y,
                                       phase: Double.random(in: 0...(2 * .pi)),
@@ -596,13 +633,68 @@ final class World {
         }
     }
 
-    private func nearestFood(for f: Fish) -> Food? {
-        food.filter { abs($0.x - f.x) < 28 }
-            .min { a, b in
-                let da = pow(a.x - f.x, 2) + pow((a.y - f.y) * 2, 2)
-                let db = pow(b.x - f.x, 2) + pow((b.y - f.y) * 2, 2)
-                return da < db
+    private func nearestPrey(for f: Fish) -> (x: Double, y: Double)? {
+        var best: (x: Double, y: Double)?
+        var bestScore = Double.infinity
+        for pellet in food where abs(pellet.x - f.x) < 28 {
+            let score = pow(pellet.x - f.x, 2) + pow((pellet.y - f.y) * 2, 2)
+            if score < bestScore {
+                bestScore = score
+                best = (pellet.x, pellet.y)
             }
+        }
+        for s in shrimp where abs(s.x - f.x) < 28 {
+            // Live prey is preferred over sinking pellets
+            let score = (pow(s.x - f.x, 2) + pow((s.y - f.y) * 2, 2)) * 0.8
+            if score < bestScore {
+                bestScore = score
+                best = (s.x, s.y)
+            }
+        }
+        return best
+    }
+
+    private func updateShrimp(_ now: Double) {
+        for i in shrimp.indices {
+            var s = shrimp[i]
+
+            // Erratic wiggle
+            if Double.random(in: 0...1) < 0.15 {
+                s.vx += Double.random(in: -0.15...0.15)
+                s.vy += Double.random(in: -0.1...0.1)
+            }
+
+            // Flee the nearest fish mouth
+            var threat: (dx: Double, dy: Double)?
+            var threatDist = 49.0 // within 7 columns
+            for f in fish {
+                let dx = s.x - f.mouthX
+                let dy = s.y - f.y
+                let dist = dx * dx + dy * dy * 4
+                if dist < threatDist {
+                    threatDist = dist
+                    threat = (dx, dy)
+                }
+            }
+            if let threat {
+                s.vx += (threat.dx >= 0 ? 1 : -1) * 0.08
+                s.vy += (threat.dy >= 0 ? 1 : -1) * 0.04
+            }
+
+            s.vx = max(-0.5, min(0.5, s.vx))
+            s.vy = max(-0.3, min(0.3, s.vy))
+            s.x += s.vx
+            s.y += s.vy
+
+            if s.x <= 1.5 { s.x = 1.5; s.vx = abs(s.vx) }
+            if s.x >= Double(cols - 3) { s.x = Double(cols - 3); s.vx = -abs(s.vx) }
+            if s.y <= Double(swimMinRow) { s.y = Double(swimMinRow); s.vy = abs(s.vy) }
+            if s.y >= Double(swimMaxRow) { s.y = Double(swimMaxRow); s.vy = -abs(s.vy) }
+
+            shrimp[i] = s
+        }
+        // Survivors eventually hide in the sand
+        shrimp.removeAll { now - $0.bornAt > 50 }
     }
 
     private func updateFood(_ now: Double) {
@@ -839,6 +931,7 @@ final class World {
         drawWeeds(&grid, now)
         drawChest(&grid, now)
         drawFood(&grid)
+        drawShrimp(&grid)
         drawBubbles(&grid)
         drawJellyfish(&grid, now)
         if let v = visitor, v.kind != .whale { drawVisitor(&grid) }
@@ -1007,6 +1100,15 @@ final class World {
         }
     }
 
+    private func drawShrimp(_ grid: inout [[Cell]]) {
+        for (i, s) in shrimp.enumerated() {
+            let r = Int(s.y.rounded()), c = Int(s.x.rounded())
+            guard r >= swimMinRow, r <= swimMaxRow, c > 0, c < cols - 1 else { continue }
+            let wiggle = ((tick / 2) + i) % 2 == 0
+            grid[r][c] = Cell(ch: wiggle ? "~" : "-", color: wiggle ? 218 : 211)
+        }
+    }
+
     private func drawBubbles(_ grid: inout [[Cell]]) {
         for bubble in bubbles {
             let r = Int(bubble.y.rounded()), c = Int(bubble.x.rounded())
@@ -1128,10 +1230,10 @@ final class World {
         }
         let sep = ANSI.fg(240) + "  |  "
         var line = ANSI.fg(51) + " 물고기 \(fish.count)마리"
-            + sep + ANSI.fg(214) + "먹이 \(food.count)"
+            + sep + ANSI.fg(214) + "먹이 \(food.count + shrimp.count)"
             + sep + ANSI.fg(250) + "\(days)일째 \(timeStr)"
             + sep + ANSI.fg(147) + modeLabel
-            + sep + ANSI.fg(245) + "[f] 먹이  [i] 도감  [n] 조명  [q] 종료"
+            + sep + ANSI.fg(245) + "[f] 먹이  [g] 생먹이  [i] 도감  [n] 조명  [q] 종료"
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }
