@@ -1,5 +1,10 @@
 import Foundation
 
+enum InputEvent {
+    case key(Character)
+    case click(col: Int, row: Int) // 0-based grid coordinates
+}
+
 enum ANSI {
     static let home = "\u{1B}[H"
     static let clear = "\u{1B}[2J"
@@ -32,12 +37,15 @@ final class Terminal {
             tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw)
             rawEnabled = true
         }
-        fputs(ANSI.altScreenOn + ANSI.hideCursor + ANSI.wrapOff + ANSI.clear, stdout)
+        // ?1000h/?1006h: report mouse clicks as SGR escape sequences
+        fputs(ANSI.altScreenOn + ANSI.hideCursor + ANSI.wrapOff
+              + "\u{1B}[?1000h\u{1B}[?1006h" + ANSI.clear, stdout)
         fflush(stdout)
     }
 
     func teardown() {
-        fputs(ANSI.reset + ANSI.wrapOn + ANSI.altScreenOff + ANSI.showCursor, stdout)
+        fputs("\u{1B}[?1006l\u{1B}[?1000l"
+              + ANSI.reset + ANSI.wrapOn + ANSI.altScreenOff + ANSI.showCursor, stdout)
         fflush(stdout)
         if rawEnabled {
             tcsetattr(STDIN_FILENO, TCSAFLUSH, &original)
@@ -82,11 +90,47 @@ final class Terminal {
         return luminance < 0.5
     }
 
-    func readKeys() -> [Character] {
-        var buf = [UInt8](repeating: 0, count: 16)
-        let n = read(STDIN_FILENO, &buf, buf.count)
-        guard n > 0 else { return [] }
-        return buf[0..<n].map { Character(UnicodeScalar($0)) }
+    private var pending: [UInt8] = []
+
+    /// Reads plain keys plus SGR mouse clicks (ESC [ < b ; col ; row M).
+    /// Incomplete escape sequences are kept for the next call.
+    func readEvents() -> [InputEvent] {
+        var chunk = [UInt8](repeating: 0, count: 128)
+        let n = read(STDIN_FILENO, &chunk, chunk.count)
+        if n > 0 { pending.append(contentsOf: chunk[0..<n]) }
+        guard !pending.isEmpty else { return [] }
+
+        var events: [InputEvent] = []
+        let buf = pending
+        var i = 0
+        var incomplete = false
+
+        while i < buf.count {
+            if buf[i] == 0x1B {
+                guard i + 1 < buf.count else { incomplete = true; break }
+                guard buf[i + 1] == UInt8(ascii: "[") else { i += 1; continue }
+                // CSI sequence: parameters, then a final byte in 0x40...0x7E
+                var j = i + 2
+                while j < buf.count, !(0x40...0x7E).contains(buf[j]) { j += 1 }
+                guard j < buf.count else { incomplete = true; break }
+                if i + 2 < j, buf[i + 2] == UInt8(ascii: "<"), buf[j] == UInt8(ascii: "M") {
+                    let body = String(bytes: buf[(i + 3)..<j], encoding: .utf8) ?? ""
+                    let parts = body.split(separator: ";").compactMap { Int($0) }
+                    if parts.count == 3, parts[0] == 0 { // left button press
+                        events.append(.click(col: parts[1] - 1, row: parts[2] - 1))
+                    }
+                }
+                i = j + 1
+                continue
+            }
+            if buf[i] >= 0x20, buf[i] < 0x7F {
+                events.append(.key(Character(UnicodeScalar(buf[i]))))
+            }
+            i += 1
+        }
+
+        pending = incomplete ? Array(buf[i...]) : []
+        return events
     }
 
     var size: (cols: Int, rows: Int) {

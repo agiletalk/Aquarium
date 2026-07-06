@@ -6,6 +6,8 @@ struct FishState: Codable {
     var speed: Double
     var eaten: Int
     var growRemaining: Double? // nil = adult
+    var name: String?          // optional: v1.2 saves have no names
+    var bornAt: Double?        // wall-clock epoch
 }
 
 struct SaveState: Codable {
@@ -15,6 +17,7 @@ struct SaveState: Codable {
     var breedRemaining: Double
     var lighting: String
     var fish: [FishState]
+    var visitorSeen: [String: Int]? // 도감 손님 기록
 }
 
 enum SaveStore {

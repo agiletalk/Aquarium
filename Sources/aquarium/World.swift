@@ -34,6 +34,26 @@ let allSpecies: [Species] = [
 
 let fishPalette: [UInt8] = [196, 202, 208, 214, 220, 226, 201, 213, 199, 51, 45, 39, 118, 82, 141, 129]
 
+let fishNamePool = [
+    "방울이", "통통이", "쏜살이", "반짝이", "초롱이", "몽실이", "뽀글이", "살랑이",
+    "여울이", "물결이", "미르", "파랑이", "노랑이", "분홍이", "산호", "진주",
+    "소라", "새벽이", "노을이", "별이", "달이", "구름이", "이슬이", "방긋이",
+    "날쌘이", "느긋이", "용용이", "꼬물이", "꿈틀이", "코랄", "아쿠아", "바다",
+    "하늘이", "은빛이", "금빛이", "무지개", "솜사탕", "젤리", "푸딩", "모카",
+]
+
+/// 을/를 — final-consonant(받침) aware object particle
+func objectParticle(_ name: String) -> String {
+    guard let scalar = name.unicodeScalars.last, (0xAC00...0xD7A3).contains(scalar.value) else { return "를" }
+    return (scalar.value - 0xAC00) % 28 == 0 ? "를" : "을"
+}
+
+/// 이/가 — final-consonant(받침) aware subject particle
+func subjectParticle(_ name: String) -> String {
+    guard let scalar = name.unicodeScalars.last, (0xAC00...0xD7A3).contains(scalar.value) else { return "가" }
+    return (scalar.value - 0xAC00) % 28 == 0 ? "가" : "이"
+}
+
 struct Fish {
     var x: Double
     var y: Double
@@ -45,6 +65,9 @@ struct Fish {
     var color2: UInt8 = 231
     var growAt: Double? // nil means adult
     var eaten: Int = 0
+    var name: String = ""
+    var bornAtEpoch: Double = 0 // wall-clock epoch
+    var panicUntil: Double = 0  // darting away after being touched
 
     var art: [Character] { dir > 0 ? allSpecies[species].right : allSpecies[species].left }
     var mouthX: Double { dir > 0 ? x + Double(art.count - 1) : x }
@@ -68,6 +91,26 @@ struct Weed {
     var x: Int
     var height: Int
     var phase: Double
+}
+
+enum VisitorKind: String, CaseIterable {
+    case whale, turtle, octopus
+
+    var label: String {
+        switch self {
+        case .whale: return "고래"
+        case .turtle: return "거북이"
+        case .octopus: return "문어"
+        }
+    }
+}
+
+struct Visitor {
+    var kind: VisitorKind
+    var x: Double
+    var y: Double
+    var dir: Double
+    var departAt: Double? // octopus leaves on a timer
 }
 
 struct Snail {
@@ -112,6 +155,14 @@ final class World {
     var jellyfish: [Jellyfish] = []
     var snails: [Snail] = []
     var crabs: [Crab] = []
+    var visitor: Visitor?
+    private var inkCloud: (x: Double, y: Double, bornAt: Double)?
+    private var nextVisitorAt: Double = 0
+    private var visitorSeen: [String: Int] = [:]
+    private let debugVisitor = ProcessInfo.processInfo.environment["AQUARIUM_VISITOR"]
+
+    private var usedNames: Set<String> = []
+    private(set) var rosterOpen = false
 
     private var chestX: Int? // left column of the chest; nil when the tank is too narrow
     private var chestOpenUntil: Double = 0
@@ -151,6 +202,7 @@ final class World {
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: 180...300)
         tankBornAt = Date().timeIntervalSince1970
+        nextVisitorAt = startTime + (debugVisitor != nil ? 4 : Double.random(in: 120...300))
         plantWeeds()
         placeChest()
         spawnJellyfish()
@@ -184,7 +236,12 @@ final class World {
         let now = self.now
         tankBornAt = save.tankBornAt
         lighting = Lighting(rawValue: save.lighting) ?? .auto
+        visitorSeen = save.visitorSeen ?? [:]
 
+        // Reserve saved names first so generated names can't collide with them
+        for state in save.fish {
+            if let name = state.name { usedNames.insert(name) }
+        }
         for state in save.fish {
             let species = min(max(0, state.species), allSpecies.count - 1)
             var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
@@ -195,6 +252,8 @@ final class World {
                          color: state.color)
             f.eaten = state.eaten
             f.growAt = state.growRemaining.map { now + $0 }
+            f.name = state.name ?? nextName()
+            f.bornAtEpoch = state.bornAt ?? save.tankBornAt
             clampToTank(&f)
             fish.append(f)
         }
@@ -240,8 +299,11 @@ final class World {
                           color: f.color,
                           speed: f.speed,
                           eaten: f.eaten,
-                          growRemaining: f.growAt.map { max(0, $0 - now) })
-            })
+                          growRemaining: f.growAt.map { max(0, $0 - now) },
+                          name: f.name,
+                          bornAt: f.bornAtEpoch)
+            },
+            visitorSeen: visitorSeen)
     }
 
     func writeSave() {
@@ -331,6 +393,22 @@ final class World {
             : []
     }
 
+    private func nextName() -> String {
+        if let name = fishNamePool.shuffled().first(where: { !usedNames.contains($0) }) {
+            usedNames.insert(name)
+            return name
+        }
+        var suffix = 2
+        while true {
+            let name = fishNamePool.randomElement()! + "\(suffix)"
+            if !usedNames.contains(name) {
+                usedNames.insert(name)
+                return name
+            }
+            suffix += 1
+        }
+    }
+
     private func spawnAdult() {
         let species = Int.random(in: 1..<allSpecies.count)
         var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
@@ -339,11 +417,14 @@ final class World {
                      speed: Double.random(in: allSpecies[species].speed),
                      species: species,
                      color: fishPalette.randomElement()!)
+        f.name = nextName()
+        f.bornAtEpoch = Date().timeIntervalSince1970
         clampToTank(&f)
         fish.append(f)
     }
 
-    private func spawnBaby(near parent: Fish) {
+    @discardableResult
+    private func spawnBaby(near parent: Fish) -> String {
         var baby = Fish(x: parent.x,
                         y: parent.y,
                         dir: Bool.random() ? 1 : -1,
@@ -351,8 +432,11 @@ final class World {
                         species: 0,
                         color: parent.color,
                         growAt: now + Double.random(in: 30...55))
+        baby.name = nextName()
+        baby.bornAtEpoch = Date().timeIntervalSince1970
         clampToTank(&baby)
         fish.append(baby)
+        return baby.name
     }
 
     private func clampToTank(_ f: inout Fish) {
@@ -379,6 +463,45 @@ final class World {
         messageUntil = now + 4
     }
 
+    func toggleRoster() {
+        rosterOpen.toggle()
+    }
+
+    /// Handles a mouse click at 0-based grid coordinates.
+    func touch(col: Int, row: Int) {
+        if rosterOpen {
+            rosterOpen = false
+            return
+        }
+        let now = self.now
+
+        for i in fish.indices.reversed() {
+            let f = fish[i]
+            let r = Int(f.y.rounded())
+            let c0 = Int(f.x.rounded())
+            guard abs(r - row) <= 1, col >= c0 - 1, col <= c0 + f.art.count else { continue }
+
+            post("\(f.name)\(objectParticle(f.name)) 만졌어요!")
+            Sound.playTouch()
+            fish[i].panicUntil = now + 1.5
+            fish[i].dir = Double(c0 + f.art.count / 2) >= Double(col) ? 1 : -1
+            fish[i].vy = Double.random(in: -0.25...0.25)
+            for _ in 0..<2 {
+                bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
+                                      phase: Double.random(in: 0...(2 * .pi)),
+                                      speed: Double.random(in: 0.2...0.35)))
+            }
+            return
+        }
+
+        // Tapping the glass: just a startled little bubble
+        if row >= swimMinRow, row <= swimMaxRow, col > 0, col < cols - 1 {
+            bubbles.append(Bubble(x: Double(col), y: Double(row),
+                                  phase: Double.random(in: 0...(2 * .pi)),
+                                  speed: Double.random(in: 0.15...0.3)))
+        }
+    }
+
     // MARK: - Simulation
 
     func update() {
@@ -400,13 +523,14 @@ final class World {
         updateJellyfish(now)
         updateChest(now)
         updateCleanupCrew(now)
+        updateVisitor(now)
 
         // The tank slowly fills up on its own; feeding just speeds it along.
         if now >= nextBreed {
             nextBreed = now + Double.random(in: 180...300)
             if fish.count < maxFish, let parent = fish.randomElement() {
-                spawnBaby(near: parent)
-                post("아기 물고기가 태어났어요! (\(fish.count)마리)")
+                let name = spawnBaby(near: parent)
+                post("아기 \(name)\(subjectParticle(name)) 태어났어요! (\(fish.count)마리)")
             }
         }
     }
@@ -415,7 +539,10 @@ final class World {
         for i in fish.indices {
             var f = fish[i]
 
-            if let target = nearestFood(for: f) {
+            if now < f.panicUntil {
+                // Touched! Dart away from the finger
+                f.x += f.dir * f.speed * 3.5
+            } else if let target = nearestFood(for: f) {
                 let dx = target.x - f.mouthX
                 if abs(dx) > 1 { f.dir = dx > 0 ? 1 : -1 }
                 f.vy = max(-0.3, min(0.3, (target.y - f.y) * 0.12))
@@ -612,6 +739,90 @@ final class World {
         }
     }
 
+    // MARK: - Rare visitors
+
+    private func updateVisitor(_ now: Double) {
+        if let cloud = inkCloud, now - cloud.bornAt > 4 { inkCloud = nil }
+
+        if visitor == nil, now >= nextVisitorAt, cols >= 50, rows >= 16 {
+            spawnVisitor(now)
+        }
+        guard var v = visitor else { return }
+
+        switch v.kind {
+        case .whale, .turtle:
+            v.x += v.dir * (v.kind == .whale ? 0.28 : 0.18)
+            if v.kind == .turtle { v.y += sin(now * 1.2) * 0.03 }
+            let width = Double(visitorArt(v).map(\.count).max() ?? 20)
+            if (v.dir > 0 && v.x > Double(cols)) || (v.dir < 0 && v.x < -width) {
+                visitor = nil
+                scheduleNextVisitor(now)
+            } else {
+                visitor = v
+            }
+        case .octopus:
+            if let departAt = v.departAt, now >= departAt {
+                inkCloud = (v.x + 4, v.y + 1, now)
+                visitor = nil
+                scheduleNextVisitor(now)
+                post("문어가 먹물을 뿜고 사라졌어요!")
+            } else {
+                v.y += sin(now * 2) * 0.02
+                visitor = v
+            }
+        }
+    }
+
+    private func spawnVisitor(_ now: Double) {
+        var kind = VisitorKind(rawValue: debugVisitor ?? "") ?? VisitorKind.allCases.randomElement()!
+        if kind == .whale, swimMaxRow - swimMinRow < 8 { kind = .turtle }
+
+        let dir: Double = Bool.random() ? 1 : -1
+        switch kind {
+        case .whale:
+            visitor = Visitor(kind: kind,
+                              x: dir > 0 ? -24 : Double(cols + 2),
+                              y: Double(swimMinRow + 1),
+                              dir: dir, departAt: nil)
+            post("저 멀리 고래가 지나가요…")
+        case .turtle:
+            visitor = Visitor(kind: kind,
+                              x: dir > 0 ? -12 : Double(cols + 2),
+                              y: Double.random(in: Double(swimMinRow + 2)...Double(max(swimMinRow + 2, swimMaxRow - 4))),
+                              dir: dir, departAt: nil)
+            post("거북이가 놀러 왔어요!")
+        case .octopus:
+            visitor = Visitor(kind: kind,
+                              x: Double.random(in: 4...Double(max(5, cols - 14))),
+                              y: Double.random(in: Double(swimMinRow + 2)...Double(max(swimMinRow + 2, swimMaxRow - 5))),
+                              dir: 1, departAt: now + 8)
+            post("문어가 나타났어요!")
+        }
+        visitorSeen[kind.rawValue, default: 0] += 1
+    }
+
+    private func scheduleNextVisitor(_ now: Double) {
+        nextVisitorAt = now + (debugVisitor != nil
+            ? Double.random(in: 15...25)
+            : Double.random(in: 240...600))
+    }
+
+    private func visitorArt(_ v: Visitor) -> [[Character]] {
+        switch v.kind {
+        case .whale:
+            return v.dir < 0
+                ? [Array("  ________________/\\ "), Array(" (_°_______________\\/")]
+                : [Array(" /\\________________  "), Array("\\/_______________°_) ")]
+        case .turtle:
+            return v.dir > 0
+                ? [Array("  ______   "), Array("~(______)°>")]
+                : [Array("   ______  "), Array("<°(______)~")]
+        case .octopus:
+            let tentacles = (tick / 4) % 2 == 0 ? " /|/|\\|\\ " : " \\|\\|/|/ "
+            return [Array(" .-\"\"\"-. "), Array("( °   ° )"), Array(tentacles)]
+        }
+    }
+
     // MARK: - Rendering
 
     func render() -> String {
@@ -624,13 +835,16 @@ final class World {
         let now = self.now
 
         drawTank(&grid, now)
+        if visitor?.kind == .whale { drawVisitor(&grid) } // far background
         drawWeeds(&grid, now)
         drawChest(&grid, now)
         drawFood(&grid)
         drawBubbles(&grid)
         drawJellyfish(&grid, now)
+        if let v = visitor, v.kind != .whale { drawVisitor(&grid) }
         drawFish(&grid)
         drawCleanupCrew(&grid)
+        drawInk(&grid)
 
         var out = ANSI.home
         var lastColor: UInt8 = 0
@@ -650,6 +864,7 @@ final class World {
             }
         }
         out += "\r\n" + statusLine(now) + "\u{1B}[K"
+        if rosterOpen { out += rosterOverlay() }
         return out
     }
 
@@ -834,6 +1049,45 @@ final class World {
         }
     }
 
+    private func drawVisitor(_ grid: inout [[Cell]]) {
+        guard let v = visitor else { return }
+        let art = visitorArt(v)
+        let baseColor: UInt8
+        switch v.kind {
+        case .whale: baseColor = 24    // distant deep blue
+        case .turtle: baseColor = 71
+        case .octopus: baseColor = 168
+        }
+        let startR = Int(v.y.rounded())
+        let startC = Int(v.x.rounded())
+        for (ri, rowArt) in art.enumerated() {
+            let r = startR + ri
+            guard r >= swimMinRow, r <= swimMaxRow else { continue }
+            for (ci, ch) in rowArt.enumerated() where ch != " " {
+                let c = startC + ci
+                guard c > 0, c < cols - 1 else { continue }
+                grid[r][c] = Cell(ch: ch, color: ch == "°" ? 231 : baseColor)
+            }
+        }
+    }
+
+    private func drawInk(_ grid: inout [[Cell]]) {
+        guard let cloud = inkCloud else { return }
+        let age = now - cloud.bornAt
+        let density = max(0, 1 - age / 4)
+        let chars: [Character] = ["%", "#", "*"]
+        for dy in -2...2 {
+            for dx in -6...6 {
+                let r = Int(cloud.y.rounded()) + dy
+                let c = Int(cloud.x.rounded()) + dx
+                guard r >= swimMinRow, r <= swimMaxRow, c > 0, c < cols - 1 else { continue }
+                let h = Int((UInt(bitPattern: (dx &+ 7) &* 31 &+ (dy &+ 3) &* 131 &+ tick / 3) &* 2_654_435_761) % 100)
+                guard Double(h) < density * 55 else { continue }
+                grid[r][c] = Cell(ch: chars[h % chars.count], color: 239)
+            }
+        }
+    }
+
     private func drawCleanupCrew(_ grid: inout [[Cell]]) {
         let r = sandRow - 1
         guard r >= swimMinRow else { return }
@@ -877,10 +1131,77 @@ final class World {
             + sep + ANSI.fg(214) + "먹이 \(food.count)"
             + sep + ANSI.fg(250) + "\(days)일째 \(timeStr)"
             + sep + ANSI.fg(147) + modeLabel
-            + sep + ANSI.fg(245) + "[f] 먹이  [n] 조명  [q] 종료"
+            + sep + ANSI.fg(245) + "[f] 먹이  [i] 도감  [n] 조명  [q] 종료"
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }
         return line + ANSI.reset
+    }
+
+    // MARK: - Roster panel (도감)
+
+    /// Hangul renders 2 columns wide in the terminal.
+    private func displayWidth(_ s: String) -> Int {
+        s.unicodeScalars.reduce(0) { width, scalar in
+            let wide = (0xAC00...0xD7A3).contains(scalar.value)
+                || (0x1100...0x115F).contains(scalar.value)
+                || (0x3130...0x318F).contains(scalar.value)
+            return width + (wide ? 2 : 1)
+        }
+    }
+
+    private func pad(_ s: String, to width: Int) -> String {
+        s + String(repeating: " ", count: max(0, width - displayWidth(s)))
+    }
+
+    private func pos(_ row: Int, _ col: Int) -> String {
+        "\u{1B}[\(row);\(col)H"
+    }
+
+    /// Drawn with absolute cursor positioning over the live tank, so
+    /// double-width Hangul can't shift the grid cells around it.
+    private func rosterOverlay() -> String {
+        guard cols >= 50, gridRows >= 12 else {
+            return pos(3, 3) + ANSI.fg(220) + " 도감을 보려면 창을 키워주세요 " + ANSI.reset
+        }
+        let innerW = min(46, cols - 8)
+        let maxList = max(1, gridRows - 9)
+        let sorted = fish.sorted { $0.bornAtEpoch < $1.bornAtEpoch }
+        let shown = sorted.prefix(maxList)
+        let nowEpoch = Date().timeIntervalSince1970
+
+        var lines: [(text: String, color: UInt8)] = []
+        for f in shown {
+            let days = Int((nowEpoch - f.bornAtEpoch) / 86400)
+            let age = days <= 0 ? "오늘" : "\(days)일째"
+            let line = " " + pad(f.name, to: 11) + pad(String(f.art), to: 10)
+                + pad(age, to: 9) + "먹이 \(f.eaten)"
+            lines.append((line, 252))
+        }
+        if sorted.count > shown.count {
+            lines.append((" …외 \(sorted.count - shown.count)마리", 245))
+        }
+        lines.append(("", 252))
+        let seen = " 손님 기록   고래 \(visitorSeen["whale", default: 0])"
+            + " · 거북이 \(visitorSeen["turtle", default: 0])"
+            + " · 문어 \(visitorSeen["octopus", default: 0])"
+        lines.append((seen, 117))
+
+        let startRow = 3
+        let startCol = max(2, (cols - innerW - 2) / 2 + 1)
+        let title = "[ 우리 어항 도감 · \(fish.count)마리 ]"
+        var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
+            + ANSI.fg(51) + title
+            + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
+        var r = startRow + 1
+        for line in lines {
+            guard r < rows - 1 else { break }
+            out += pos(r, startCol) + ANSI.fg(245) + "|"
+                + ANSI.fg(line.color) + pad(line.text, to: innerW)
+                + ANSI.fg(245) + "|"
+            r += 1
+        }
+        out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
+        return out + ANSI.reset
     }
 }

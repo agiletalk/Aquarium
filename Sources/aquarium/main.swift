@@ -30,16 +30,23 @@ mainLoop: while true {
         world.resize(cols: cols, rows: rows)
     }
 
-    for key in term.readKeys() {
-        switch key {
-        case "f", "F":
-            world.feed()
-        case "n", "N":
-            world.toggleLighting()
-        case "q", "Q":
-            break mainLoop
-        default:
-            break
+    for event in term.readEvents() {
+        switch event {
+        case .key(let key):
+            switch key {
+            case "f", "F":
+                world.feed()
+            case "n", "N":
+                world.toggleLighting()
+            case "i", "I":
+                world.toggleRoster()
+            case "q", "Q":
+                break mainLoop
+            default:
+                break
+            }
+        case .click(let col, let row):
+            world.touch(col: col, row: row)
         }
     }
 
