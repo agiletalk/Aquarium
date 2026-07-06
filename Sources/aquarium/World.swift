@@ -476,6 +476,10 @@ final class World {
         rosterOpen.toggle()
     }
 
+    func toggleMusic() {
+        post(MusicPlayer.shared.toggle())
+    }
+
     /// Live food: a school of brine shrimp that actively flees the fish.
     func feedLive() {
         guard cols > 12, shrimp.count < 30 else { return }
@@ -539,6 +543,9 @@ final class World {
         if now >= nextAutosave {
             nextAutosave = now + 60
             writeSave()
+        }
+        if let title = MusicPlayer.shared.pollNewTitle() {
+            post("♪ 지금 나오는 곡: \(title)")
         }
 
         updateFish(now)
@@ -1233,7 +1240,8 @@ final class World {
             + sep + ANSI.fg(214) + "먹이 \(food.count + shrimp.count)"
             + sep + ANSI.fg(250) + "\(days)일째 \(timeStr)"
             + sep + ANSI.fg(147) + modeLabel
-            + sep + ANSI.fg(245) + "[f] 먹이  [g] 생먹이  [i] 도감  [n] 조명  [q] 종료"
+            + (MusicPlayer.shared.isPlaying ? ANSI.fg(219) + " ♪" : "")
+            + sep + ANSI.fg(245) + "[f] 먹이  [g] 생먹이  [i] 도감  [n] 조명  [m] 음악  [q] 종료"
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }

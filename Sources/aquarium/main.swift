@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "1.5.0"
+let appVersion = "1.6.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -33,6 +33,7 @@ func printHelp() {
     키:
       f  먹이 주기          g  생먹이(브라인슈림프)
       i  도감               n  조명 (자동 → 밤 → 낮)
+      m  음악 (칩튠 플레이리스트 켜기/끄기)
       q  종료 (자동 저장)   마우스 클릭: 물고기 만지기
 
     환경변수:
@@ -100,6 +101,8 @@ mainLoop: while true {
                 world.toggleLighting()
             case "i", "I":
                 world.toggleRoster()
+            case "m", "M":
+                world.toggleMusic()
             case "q", "Q":
                 break mainLoop
             default:
