@@ -158,6 +158,8 @@ enum L10n {
               aquarium              어항 실행
               aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
               aquarium --card       어항 명함 PNG 생성 (SNS 공유용)
+              aquarium --install-hook  현재 git 레포에 커밋 보상 훅 설치
+              aquarium --reward     커밋 보상 적립 (git hook이 호출)
               aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
               aquarium --version    버전 출력
 
@@ -181,6 +183,8 @@ enum L10n {
               aquarium               run the tank
               aquarium --focus [min] start in pomodoro focus mode (default 25)
               aquarium --card        render a shareable PNG tank card
+              aquarium --install-hook  install the commit-reward hook in this repo
+              aquarium --reward      bank a commit reward (called by the git hook)
               aquarium --status      one-line tank summary (for tmux status bars)
               aquarium --version     print version
 
@@ -198,6 +202,27 @@ enum L10n {
               AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
             """
     }
+
+    // MARK: - Commit rewards
+
+    static func rewardDeposited(_ pending: Int) -> String {
+        t("><> 커밋 보상 적립! 어항에 먹이가 도착할 거예요 (대기 \(pending)건)",
+          "><> Commit reward banked! Food is on its way to your tank (\(pending) pending)")
+    }
+    static func rewardArrived(_ commits: Int) -> String {
+        t("커밋 보상 도착! 먹이가 쏟아집니다 (커밋 \(commits)건)",
+          "Commit reward! Food incoming (\(commits) commits)")
+    }
+    static func rosterCommits(_ n: Int) -> String { t("커밋 보상   \(n)회", "Commits   \(n) rewarded") }
+    static func cardCommits(_ n: Int) -> String {
+        t("커밋 \(n)번이 이 물고기들을 키웠어요", "Raised on \(n) commits")
+    }
+    static func hookInstalled(_ path: String) -> String {
+        t("post-commit 훅 설치 완료: \(path)\n이제 커밋할 때마다 물고기 먹이가 적립됩니다!",
+          "post-commit hook installed: \(path)\nEvery commit now feeds your fish!")
+    }
+    static var hookAlreadyInstalled: String { t("이미 설치되어 있어요", "Hook already installed") }
+    static var hookNoRepo: String { t("git 저장소가 아니에요 — 레포 안에서 실행해주세요", "Not a git repository — run inside a repo") }
 
     // MARK: - Card
 

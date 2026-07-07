@@ -177,6 +177,8 @@ final class World {
 
     private var focusUntil: Double? // systemUptime deadline of the running pomodoro
     private var focusDone = 0       // completed sessions, persisted
+    private var commitRewards = 0   // total commit rewards, persisted
+    private var nextInboxCheck: Double = 0
 
     private var chestX: Int? // left column of the chest; nil when the tank is too narrow
     private var chestOpenUntil: Double = 0
@@ -255,6 +257,7 @@ final class World {
         lighting = Lighting(rawValue: save.lighting) ?? .auto
         visitorSeen = save.visitorSeen ?? [:]
         focusDone = save.focusDone ?? 0
+        commitRewards = save.commitRewards ?? 0
 
         // Reserve saved names first so generated names can't collide with them
         for state in save.fish {
@@ -323,7 +326,8 @@ final class World {
             },
             visitorSeen: visitorSeen,
             focusDone: focusDone,
-            tankFull: fish.count >= maxFish)
+            tankFull: fish.count >= maxFish,
+            commitRewards: commitRewards)
     }
 
     func writeSave() {
@@ -505,6 +509,15 @@ final class World {
         }
     }
 
+    /// git 커밋 보상: 실행 중이면 즉시 먹이가 쏟아지고, 남는 몫은 번식 가속으로
+    private func applyCommitReward(_ commits: Int) {
+        commitRewards += commits
+        sprinkleFood(min(12, commits * 5))
+        nextBreed -= Double(commits) * 30
+        post(L10n.rewardArrived(commits))
+        writeSave()
+    }
+
     private func completeFocus(_ now: Double) {
         focusUntil = nil
         focusDone += 1
@@ -603,6 +616,11 @@ final class World {
         }
         if let deadline = focusUntil, now >= deadline {
             completeFocus(now)
+        }
+        if !ephemeral, now >= nextInboxCheck {
+            nextInboxCheck = now + 5
+            let commits = RewardInbox.consume()
+            if commits > 0 { applyCommitReward(commits) }
         }
 
         updateFish(now)
@@ -1361,6 +1379,9 @@ final class World {
         lines.append((seen, 117))
         if focusDone > 0 {
             lines.append((" " + L10n.rosterFocus(focusDone), 203))
+        }
+        if commitRewards > 0 {
+            lines.append((" " + L10n.rosterCommits(commitRewards), 114))
         }
 
         let startRow = 3

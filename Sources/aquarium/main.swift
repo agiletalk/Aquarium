@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.2.1"
+let appVersion = "2.3.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -21,6 +21,43 @@ func printStatus() {
         breedText = L10n.statusNextBirthSeconds(Int(remaining))
     }
     print(L10n.statusLine(count: save.fish.count, days: days, breed: breedText))
+}
+
+func installHook() {
+    let git = Process()
+    git.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    git.arguments = ["git", "rev-parse", "--git-path", "hooks"]
+    let pipe = Pipe()
+    git.standardOutput = pipe
+    git.standardError = Pipe()
+    guard (try? git.run()) != nil else {
+        print(L10n.hookNoRepo)
+        exit(1)
+    }
+    git.waitUntilExit()
+    guard git.terminationStatus == 0,
+          let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) else {
+        print(L10n.hookNoRepo)
+        exit(1)
+    }
+
+    let hooksDir = output.trimmingCharacters(in: .whitespacesAndNewlines)
+    let hookPath = hooksDir + "/post-commit"
+    let rewardLine = "command -v aquarium >/dev/null 2>&1 && aquarium --reward"
+    let fm = FileManager.default
+    try? fm.createDirectory(atPath: hooksDir, withIntermediateDirectories: true)
+
+    if let existing = try? String(contentsOfFile: hookPath, encoding: .utf8) {
+        if existing.contains("aquarium --reward") {
+            print(L10n.hookAlreadyInstalled)
+            return
+        }
+        try? (existing + "\n" + rewardLine + "\n").write(toFile: hookPath, atomically: true, encoding: .utf8)
+    } else {
+        try? ("#!/bin/sh\n" + rewardLine + "\n").write(toFile: hookPath, atomically: true, encoding: .utf8)
+    }
+    try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hookPath)
+    print(L10n.hookInstalled(hookPath))
 }
 
 func printHelp() {
@@ -46,6 +83,14 @@ if arguments.contains("--status") {
 }
 if arguments.contains("--card") {
     Card.generate()
+    exit(0)
+}
+if arguments.contains("--reward") {
+    print(L10n.rewardDeposited(RewardInbox.deposit()))
+    exit(0)
+}
+if arguments.contains("--install-hook") {
+    installHook()
     exit(0)
 }
 if arguments.contains("--help") || arguments.contains("-h") {

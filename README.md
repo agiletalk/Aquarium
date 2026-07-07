@@ -55,6 +55,17 @@ A countdown appears in the status bar. When the session completes, a feast rains
 down for the fish, a chime plays, and the session is recorded in your tank log —
 your focus literally grows the tank.
 
+## Your commits feed the fish (`--install-hook`)
+
+```sh
+cd your-repo && aquarium --install-hook
+```
+
+Every `git commit` now banks a food reward. If the tank is open, food rains
+down within seconds; otherwise it's delivered the next time you visit. Your
+lifetime total shows up in the tank log and on your card — these fish were
+literally *raised on your commits*.
+
 ## Share your tank (`--card`)
 
 Render your actual tank — your fish, their names, your records — into a PNG

@@ -21,15 +21,18 @@ enum Card {
         let nowEpoch = Date().timeIntervalSince1970
         let days = max(1, Int((nowEpoch - save.tankBornAt) / 86400) + 1)
         let names = save.fish.compactMap(\.name).prefix(3).joined(separator: ", ")
-        let statLines = [
+        var statLines = [
             L10n.cardSwimming(count: save.fish.count, days: days),
             save.fish.count > 3 ? L10n.cardFriends(names) : names,
             L10n.cardRecords(focus: save.focusDone ?? 0,
                              whale: save.visitorSeen?["whale"] ?? 0,
                              turtle: save.visitorSeen?["turtle"] ?? 0,
                              octopus: save.visitorSeen?["octopus"] ?? 0),
-            "github.com/agiletalk/Aquarium",
         ]
+        if let commits = save.commitRewards, commits > 0 {
+            statLines.append(L10n.cardCommits(commits))
+        }
+        statLines.append("github.com/agiletalk/Aquarium")
 
         let url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("aquarium-card.png")

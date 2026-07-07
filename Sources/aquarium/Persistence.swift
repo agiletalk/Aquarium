@@ -20,6 +20,7 @@ struct SaveState: Codable {
     var visitorSeen: [String: Int]? // 도감 손님 기록
     var focusDone: Int?             // 완료한 뽀모도로 세션 수
     var tankFull: Bool?             // 저장 시점에 정원이 찼는지 (--status 표시용)
+    var commitRewards: Int?         // 커밋 보상 누적 횟수
 }
 
 enum SaveStore {
@@ -36,5 +37,31 @@ enum SaveStore {
     static func write(_ state: SaveState) {
         guard let data = try? JSONEncoder().encode(state) else { return }
         try? data.write(to: fileURL, options: .atomic)
+    }
+}
+
+/// git post-commit 훅이 적립하는 보상 인박스.
+/// 실행 중인 앱과의 저장 파일 쓰기 충돌을 피하려고 별도 파일을 쓴다.
+enum RewardInbox {
+    static var fileURL: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-inbox")
+    }
+
+    static func deposit() -> Int {
+        let next = pending() + 1
+        try? "\(next)".write(to: fileURL, atomically: true, encoding: .utf8)
+        return next
+    }
+
+    static func pending() -> Int {
+        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { return 0 }
+        return Int(text.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+    }
+
+    static func consume() -> Int {
+        let count = pending()
+        if count > 0 { try? "0".write(to: fileURL, atomically: true, encoding: .utf8) }
+        return count
     }
 }
