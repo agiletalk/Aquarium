@@ -55,6 +55,17 @@ A countdown appears in the status bar. When the session completes, a feast rains
 down for the fish, a chime plays, and the session is recorded in your tank log —
 your focus literally grows the tank.
 
+## Share your tank (`--card`)
+
+Render your actual tank — your fish, their names, your records — into a PNG
+card ready for Slack or social media:
+
+```sh
+aquarium --card   # writes ./aquarium-card.png (+ color preview in terminal)
+```
+
+![Example tank card](docs/card-example.png)
+
 ## One-line summary (`--status`)
 
 Check on your tank without opening it:

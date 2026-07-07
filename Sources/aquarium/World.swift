@@ -176,6 +176,7 @@ final class World {
     private var nextEnvCheck: Double = 0
     private var nextAutosave: Double = 0
     private var tankBornAt: Double = 0 // wall-clock epoch
+    private let ephemeral: Bool        // card rendering: never write the save file
 
     var isNight: Bool { lighting == .night || (lighting == .auto && envNight) }
 
@@ -191,10 +192,12 @@ final class World {
 
     private var maxFish: Int { max(8, min(40, cols * rows / 80)) }
 
-    init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil) {
+    init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil,
+         ephemeral: Bool = false) {
         self.cols = cols
         self.rows = rows
         self.terminalDark = terminalDark
+        self.ephemeral = ephemeral
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: 900...1500)
         tankBornAt = Date().timeIntervalSince1970
@@ -310,6 +313,11 @@ final class World {
     }
 
     // MARK: - Lighting
+
+    func setLighting(_ mode: Lighting) {
+        lighting = mode
+        refreshEnvNight()
+    }
 
     func toggleLighting() {
         switch lighting {
@@ -492,7 +500,7 @@ final class World {
         }
         Sound.playChime()
         post(L10n.focusComplete(focusDone))
-        writeSave()
+        if !ephemeral { writeSave() }
     }
 
     private func post(_ text: String) {
@@ -568,7 +576,7 @@ final class World {
             nextEnvCheck = now + 60
             refreshEnvNight()
         }
-        if now >= nextAutosave {
+        if !ephemeral, now >= nextAutosave {
             nextAutosave = now + 60
             writeSave()
         }
@@ -963,21 +971,7 @@ final class World {
                 + L10n.enlargeTerminal + ANSI.reset
         }
 
-        var grid = [[Cell]](repeating: [Cell](repeating: Cell(), count: cols), count: gridRows)
-        let now = self.now
-
-        drawTank(&grid, now)
-        if visitor?.kind == .whale { drawVisitor(&grid) } // far background
-        drawWeeds(&grid, now)
-        drawChest(&grid, now)
-        drawFood(&grid)
-        drawShrimp(&grid)
-        drawBubbles(&grid)
-        drawJellyfish(&grid, now)
-        if let v = visitor, v.kind != .whale { drawVisitor(&grid) }
-        drawFish(&grid)
-        drawCleanupCrew(&grid)
-        drawInk(&grid)
+        let grid = composeGrid()
 
         var out = ANSI.home
         var lastColor: UInt8 = 0
@@ -1015,6 +1009,25 @@ final class World {
         default:
             return color
         }
+    }
+
+    func composeGrid() -> [[Cell]] {
+        var grid = [[Cell]](repeating: [Cell](repeating: Cell(), count: cols), count: gridRows)
+        let now = self.now
+
+        drawTank(&grid, now)
+        if visitor?.kind == .whale { drawVisitor(&grid) } // far background
+        drawWeeds(&grid, now)
+        drawChest(&grid, now)
+        drawFood(&grid)
+        drawShrimp(&grid)
+        drawBubbles(&grid)
+        drawJellyfish(&grid, now)
+        if let v = visitor, v.kind != .whale { drawVisitor(&grid) }
+        drawFish(&grid)
+        drawCleanupCrew(&grid)
+        drawInk(&grid)
+        return grid
     }
 
     private func drawTank(_ grid: inout [[Cell]], _ now: Double) {

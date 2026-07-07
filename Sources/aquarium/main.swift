@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.1.0"
+let appVersion = "2.2.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -42,6 +42,10 @@ if let index = arguments.firstIndex(of: "--focus") {
 
 if arguments.contains("--status") {
     printStatus()
+    exit(0)
+}
+if arguments.contains("--card") {
+    Card.generate()
     exit(0)
 }
 if arguments.contains("--help") || arguments.contains("-h") {

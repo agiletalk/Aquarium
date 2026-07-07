@@ -157,6 +157,7 @@ enum L10n {
             사용법:
               aquarium              어항 실행
               aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
+              aquarium --card       어항 명함 PNG 생성 (SNS 공유용)
               aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
               aquarium --version    버전 출력
 
@@ -179,6 +180,7 @@ enum L10n {
             Usage:
               aquarium               run the tank
               aquarium --focus [min] start in pomodoro focus mode (default 25)
+              aquarium --card        render a shareable PNG tank card
               aquarium --status      one-line tank summary (for tmux status bars)
               aquarium --version     print version
 
@@ -196,6 +198,24 @@ enum L10n {
               AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
             """
     }
+
+    // MARK: - Card
+
+    static var cardTitle: String { t("나의 터미널 어항", "My Terminal Aquarium") }
+    static func cardSwimming(count: Int, days: Int) -> String {
+        t("물고기 \(count)마리와 \(days)일째 헤엄치는 중", "Swimming with \(count) fish · day \(days)")
+    }
+    static func cardFriends(_ names: String) -> String {
+        t("\(names) 그리고 친구들", "\(names) & friends")
+    }
+    static func cardRecords(focus: Int, whale: Int, turtle: Int, octopus: Int) -> String {
+        t("집중 \(focus)회 · 고래 \(whale) · 거북이 \(turtle) · 문어 \(octopus)",
+          "Focus \(focus) · whale \(whale) · turtle \(turtle) · octopus \(octopus)")
+    }
+    static func cardSaved(_ path: String) -> String {
+        t("어항 명함을 저장했어요: \(path)", "Tank card saved: \(path)")
+    }
+    static var cardFailed: String { t("명함 저장에 실패했어요", "Failed to save the card") }
 
     // MARK: - Songs
 
