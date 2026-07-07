@@ -19,6 +19,7 @@ struct SaveState: Codable {
     var fish: [FishState]
     var visitorSeen: [String: Int]? // 도감 손님 기록
     var focusDone: Int?             // 완료한 뽀모도로 세션 수
+    var tankFull: Bool?             // 저장 시점에 정원이 찼는지 (--status 표시용)
 }
 
 enum SaveStore {

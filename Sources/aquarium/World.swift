@@ -189,14 +189,14 @@ final class World {
     private var swimMinRow: Int { 2 }
     private var swimMaxRow: Int { sandRow - 1 }
 
-    private var maxFish: Int { max(8, min(28, cols * rows / 80)) }
+    private var maxFish: Int { max(8, min(40, cols * rows / 80)) }
 
     init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil) {
         self.cols = cols
         self.rows = rows
         self.terminalDark = terminalDark
         startTime = ProcessInfo.processInfo.systemUptime
-        nextBreed = startTime + Double.random(in: 180...300)
+        nextBreed = startTime + Double.random(in: 900...1500)
         tankBornAt = Date().timeIntervalSince1970
         nextVisitorAt = startTime + (debugVisitor != nil ? 4 : Double.random(in: 120...300))
         plantWeeds()
@@ -262,7 +262,7 @@ final class World {
         var bornAges: [Double] = []
         while away >= remaining {
             away -= remaining
-            remaining = Double.random(in: 180...300)
+            remaining = Double.random(in: 900...1500)
             if bornAges.count < maxOfflineBirths, fish.count + bornAges.count < maxFish {
                 bornAges.append(away) // seconds this fish has already lived
             }
@@ -301,7 +301,8 @@ final class World {
                           bornAt: f.bornAtEpoch)
             },
             visitorSeen: visitorSeen,
-            focusDone: focusDone)
+            focusDone: focusDone,
+            tankFull: fish.count >= maxFish)
     }
 
     func writeSave() {
@@ -482,7 +483,7 @@ final class World {
         focusUntil = nil
         focusDone += 1
         sprinkleFood(Int.random(in: 10...14)) // feast time
-        nextBreed -= 60
+        nextBreed -= 180
         for _ in 0..<10 {
             bubbles.append(Bubble(x: Double.random(in: 2...Double(max(3, cols - 3))),
                                   y: Double(sandRow - 1),
@@ -589,10 +590,12 @@ final class World {
 
         // The tank slowly fills up on its own; feeding just speeds it along.
         if now >= nextBreed {
-            nextBreed = now + Double.random(in: 180...300)
+            nextBreed = now + Double.random(in: 900...1500)
             if fish.count < maxFish, let parent = fish.randomElement() {
                 let name = spawnBaby(near: parent)
                 post(L10n.babyBorn(name, count: fish.count))
+            } else if fish.count >= maxFish {
+                post(L10n.tankFull(maxFish))
             }
         }
     }
@@ -633,7 +636,7 @@ final class World {
                 if abs(food[fi].x - f.mouthX) < 2.0, abs(food[fi].y - f.y) < 1.3 {
                     food.remove(at: fi)
                     f.eaten += 1
-                    nextBreed -= 10 // well-fed tanks grow faster
+                    nextBreed -= 30 // well-fed tanks grow faster
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))
@@ -645,7 +648,7 @@ final class World {
                 if abs(shrimp[si].x - f.mouthX) < 1.5, abs(shrimp[si].y - f.y) < 1.2 {
                     shrimp.remove(at: si)
                     f.eaten += 1
-                    nextBreed -= 15 // live food is extra nutritious
+                    nextBreed -= 45 // live food is extra nutritious
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))

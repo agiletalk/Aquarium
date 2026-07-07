@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.0.0"
+let appVersion = "2.1.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -11,7 +11,9 @@ func printStatus() {
     let days = max(1, Int((nowEpoch - save.tankBornAt) / 86400) + 1)
     let remaining = save.breedRemaining - (nowEpoch - save.savedAt)
     let breedText: String
-    if remaining <= 0 {
+    if save.tankFull == true {
+        breedText = L10n.statusTankFull
+    } else if remaining <= 0 {
         breedText = L10n.statusBabyWaiting
     } else if remaining >= 90 {
         breedText = L10n.statusNextBirthMinutes(Int(remaining / 60))

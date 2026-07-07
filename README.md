@@ -85,7 +85,7 @@ AQUARIUM_LANG=ko aquarium   # or en
 
 - Every fish has its own species and color — including striped tropicals (`><|||°>`).
 - Bubbles rise from the weeds and fish mouths, growing as they near the surface (`.` → `o` → `O`).
-- A baby fish (`><>`) is born every 3–5 minutes and grows into an adult. Feeding speeds this up; tank capacity scales with your terminal size.
+- A baby fish (`><>`) is born every 15–25 minutes and grows into an adult. Feeding (and finished focus sessions) speeds this up; tank capacity scales with your terminal size, up to 40 fish. When it's full, the app says so honestly.
 - The treasure chest `[____]` pops open now and then, glittering gold and startling nearby fish.
 - A jellyfish `(___)` pulses along — jetting up as it contracts, sinking as it relaxes.
 - **There's a soundtrack.** Press `m` for an eight-track chiptune playlist — "Underwater Stroll", "Moonlit Tank", "Coral Reef Waltz", "Shrimp March", "Deep Sea Dive", "Treasure Chest Polka", "Jellyfish Dream", "Song of the Whale" — synthesized live from square and triangle waves, no audio files needed.

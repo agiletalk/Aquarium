@@ -96,6 +96,13 @@ enum L10n {
     static func statusFocus(_ time: String) -> String { t("집중 \(time)", "focus \(time)") }
     static func rosterFocus(_ n: Int) -> String { t("집중 기록   \(n)회 완료", "Focus   \(n) sessions done") }
 
+    // MARK: - Tank capacity
+
+    static func tankFull(_ max: Int) -> String {
+        t("어항이 가득 찼어요! (최대 \(max)마리)", "The tank is full! (max \(max) fish)")
+    }
+    static var statusTankFull: String { t("어항이 가득 찼어요!", "the tank is full!") }
+
     // MARK: - Status bar
 
     static func statusFish(_ n: Int) -> String { t("물고기 \(n)마리", "\(n) fish") }
