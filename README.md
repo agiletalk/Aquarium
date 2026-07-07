@@ -36,11 +36,24 @@ swift run -c release
 |-----|--------|
 | `f` | Sprinkle food — the fish come rushing |
 | `g` | Release live food (brine shrimp) — cue the chase scene |
+| `p` | Start/cancel a 25-minute pomodoro — finish and the fish get a feast |
 | `i` | Tank log — every fish's name, age, meals, and visitor sightings |
 | `n` | Lights — cycle auto → night → day |
 | `m` | Music on/off — a DOS-era chiptune playlist for lo-fi coding |
 | Mouse click | Pet a fish — it bloops and darts away |
 | `q` / `Ctrl-C` | Quit (tank auto-saves) |
+
+## Pomodoro focus mode (`--focus`)
+
+Your fish become your focus buddies:
+
+```sh
+aquarium --focus 25   # minutes (default 25)
+```
+
+A countdown appears in the status bar. When the session completes, a feast rains
+down for the fish, a chime plays, and the session is recorded in your tank log —
+your focus literally grows the tank.
 
 ## One-line summary (`--status`)
 

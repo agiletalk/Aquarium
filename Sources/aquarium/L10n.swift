@@ -83,6 +83,19 @@ enum L10n {
     static var musicFailed: String { t("음악을 재생할 수 없어요 (오디오 장치를 못 찾음)", "Can't play music (no audio device found)") }
     static func nowPlaying(_ title: String) -> String { t("♪ 지금 나오는 곡: \(title)", "♪ Now playing: \(title)") }
 
+    // MARK: - Focus (pomodoro)
+
+    static func focusStarted(_ minutes: Int) -> String {
+        t("집중 시작! \(minutes)분 — 물고기들이 응원하고 있어요", "Focus started! \(minutes) min — the fish are rooting for you")
+    }
+    static var focusCancelled: String { t("집중을 중단했어요", "Focus cancelled") }
+    static func focusComplete(_ total: Int) -> String {
+        t("집중 완료! 보상으로 먹이 대잔치를 열었어요 (누적 \(total)회)",
+          "Focus complete! Feast time as a reward (total \(total))")
+    }
+    static func statusFocus(_ time: String) -> String { t("집중 \(time)", "focus \(time)") }
+    static func rosterFocus(_ n: Int) -> String { t("집중 기록   \(n)회 완료", "Focus   \(n) sessions done") }
+
     // MARK: - Status bar
 
     static func statusFish(_ n: Int) -> String { t("물고기 \(n)마리", "\(n) fish") }
@@ -93,8 +106,8 @@ enum L10n {
         return t(night ? "밤" : "낮", night ? "night" : "day")
     }
     static var helpLine: String {
-        t("[f] 먹이  [g] 생먹이  [i] 도감  [n] 조명  [m] 음악  [q] 종료",
-          "[f] feed  [g] live food  [i] log  [n] lights  [m] music  [q] quit")
+        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [n] 조명  [m] 음악  [q] 종료",
+          "[f] feed  [g] live food  [p] focus  [i] log  [n] lights  [m] music  [q] quit")
     }
     static var enlargeTerminal: String { t("터미널 창을 조금만 키워주세요! (최소 34x12)", "Please enlarge the terminal! (min 34x12)") }
 
@@ -135,15 +148,19 @@ enum L10n {
             aquarium — 터미널 속 힐링 ASCII 어항
 
             사용법:
-              aquarium             어항 실행
-              aquarium --status    저장된 어항 요약 한 줄 출력 (tmux 상태바용)
-              aquarium --version   버전 출력
+              aquarium              어항 실행
+              aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
+              aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
+              aquarium --version    버전 출력
 
             키:
               f  먹이 주기          g  생먹이(브라인슈림프)
-              i  도감               n  조명 (자동 → 밤 → 낮)
+              p  집중 시작/중단     i  도감
+              n  조명 (자동 → 밤 → 낮)
               m  음악 (칩튠 플레이리스트 켜기/끄기)
               q  종료 (자동 저장)   마우스 클릭: 물고기 만지기
+
+            집중이 끝나면 물고기들에게 먹이 대잔치가 열립니다.
 
             환경변수:
               AQUARIUM_LANG=ko|en                     언어 강제 지정
@@ -153,15 +170,19 @@ enum L10n {
             aquarium — a healing ASCII aquarium in your terminal
 
             Usage:
-              aquarium             run the tank
-              aquarium --status    one-line tank summary (for tmux status bars)
-              aquarium --version   print version
+              aquarium               run the tank
+              aquarium --focus [min] start in pomodoro focus mode (default 25)
+              aquarium --status      one-line tank summary (for tmux status bars)
+              aquarium --version     print version
 
             Keys:
               f  sprinkle food      g  live food (brine shrimp)
-              i  tank log           n  lights (auto → night → day)
+              p  start/stop focus   i  tank log
+              n  lights (auto → night → day)
               m  music (chiptune playlist on/off)
               q  quit (auto-saves)  mouse click: pet a fish
+
+            When a focus session ends, the fish get a feast.
 
             Environment:
               AQUARIUM_LANG=ko|en                     force language

@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "1.8.0"
+let appVersion = "2.0.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -25,7 +25,19 @@ func printHelp() {
     print(L10n.helpText)
 }
 
-let arguments = CommandLine.arguments.dropFirst()
+var arguments = Array(CommandLine.arguments.dropFirst())
+
+var focusMinutes: Int?
+if let index = arguments.firstIndex(of: "--focus") {
+    arguments.remove(at: index)
+    if index < arguments.count, let minutes = Int(arguments[index]) {
+        focusMinutes = minutes
+        arguments.remove(at: index)
+    } else {
+        focusMinutes = 25
+    }
+}
+
 if arguments.contains("--status") {
     printStatus()
     exit(0)
@@ -53,6 +65,9 @@ let terminalDark = term.backgroundIsDark()
 let initialSize = term.size
 let world = World(cols: initialSize.cols, rows: initialSize.rows,
                   terminalDark: terminalDark, restoring: SaveStore.load())
+if let focusMinutes {
+    world.startFocus(minutes: focusMinutes)
+}
 
 func shutdown() -> Never {
     world.writeSave()
@@ -87,6 +102,8 @@ mainLoop: while true {
                 world.toggleRoster()
             case "m", "M":
                 world.toggleMusic()
+            case "p", "P":
+                world.toggleFocus()
             case "q", "Q":
                 break mainLoop
             default:

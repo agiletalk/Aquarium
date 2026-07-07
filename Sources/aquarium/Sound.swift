@@ -16,4 +16,14 @@ enum Sound {
         process.arguments = [path]
         try? process.run()
     }
+
+    /// Celebration chime when a focus session completes.
+    static func playChime() {
+        let path = "/System/Library/Sounds/Glass.aiff"
+        guard FileManager.default.isReadableFile(atPath: path) else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
+        process.arguments = [path]
+        try? process.run()
+    }
 }

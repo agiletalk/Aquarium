@@ -157,6 +157,9 @@ final class World {
     private var usedNames: Set<String> = []
     private(set) var rosterOpen = false
 
+    private var focusUntil: Double? // systemUptime deadline of the running pomodoro
+    private var focusDone = 0       // completed sessions, persisted
+
     private var chestX: Int? // left column of the chest; nil when the tank is too narrow
     private var chestOpenUntil: Double = 0
     private var chestNextOpen: Double = 0
@@ -230,6 +233,7 @@ final class World {
         tankBornAt = save.tankBornAt
         lighting = Lighting(rawValue: save.lighting) ?? .auto
         visitorSeen = save.visitorSeen ?? [:]
+        focusDone = save.focusDone ?? 0
 
         // Reserve saved names first so generated names can't collide with them
         for state in save.fish {
@@ -296,7 +300,8 @@ final class World {
                           name: f.name,
                           bornAt: f.bornAtEpoch)
             },
-            visitorSeen: visitorSeen)
+            visitorSeen: visitorSeen,
+            focusDone: focusDone)
     }
 
     func writeSave() {
@@ -441,14 +446,52 @@ final class World {
     // MARK: - Input
 
     func feed() {
-        guard cols > 8, food.count < 60 else { return }
-        for _ in 0..<Int.random(in: 4...7) {
+        guard food.count < 60 else { return }
+        sprinkleFood(Int.random(in: 4...7))
+        post(L10n.foodSprinkled)
+    }
+
+    private func sprinkleFood(_ count: Int) {
+        guard cols > 8 else { return }
+        for _ in 0..<count {
             food.append(Food(x: Double.random(in: 2...Double(cols - 3)),
                              y: Double(surfaceRow + 1),
                              vy: Double.random(in: 0.12...0.28),
                              restingSince: nil))
         }
-        post(L10n.foodSprinkled)
+    }
+
+    // MARK: - Focus (pomodoro)
+
+    func startFocus(minutes: Int) {
+        let clamped = min(180, max(1, minutes))
+        focusUntil = now + Double(clamped) * 60
+        post(L10n.focusStarted(clamped))
+    }
+
+    func toggleFocus() {
+        if focusUntil != nil {
+            focusUntil = nil
+            post(L10n.focusCancelled)
+        } else {
+            startFocus(minutes: 25)
+        }
+    }
+
+    private func completeFocus(_ now: Double) {
+        focusUntil = nil
+        focusDone += 1
+        sprinkleFood(Int.random(in: 10...14)) // feast time
+        nextBreed -= 60
+        for _ in 0..<10 {
+            bubbles.append(Bubble(x: Double.random(in: 2...Double(max(3, cols - 3))),
+                                  y: Double(sandRow - 1),
+                                  phase: Double.random(in: 0...(2 * .pi)),
+                                  speed: Double.random(in: 0.2...0.4)))
+        }
+        Sound.playChime()
+        post(L10n.focusComplete(focusDone))
+        writeSave()
     }
 
     private func post(_ text: String) {
@@ -530,6 +573,9 @@ final class World {
         }
         if let title = MusicPlayer.shared.pollNewTitle() {
             post(L10n.nowPlaying(title))
+        }
+        if let deadline = focusUntil, now >= deadline {
+            completeFocus(now)
         }
 
         updateFish(now)
@@ -1220,7 +1266,12 @@ final class World {
             + sep + ANSI.fg(250) + L10n.statusDay(days, timeStr)
             + sep + ANSI.fg(147) + modeLabel
             + (MusicPlayer.shared.isPlaying ? ANSI.fg(219) + " ♪" : "")
-            + sep + ANSI.fg(245) + L10n.helpLine
+        if let deadline = focusUntil {
+            let remain = max(0, Int(deadline - now))
+            let clock = String(format: "%d:%02d", remain / 60, remain % 60)
+            line += sep + ANSI.fg(203) + L10n.statusFocus(clock)
+        }
+        line += sep + ANSI.fg(245) + L10n.helpLine
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }
@@ -1275,6 +1326,9 @@ final class World {
                                              turtle: visitorSeen["turtle", default: 0],
                                              octopus: visitorSeen["octopus", default: 0])
         lines.append((seen, 117))
+        if focusDone > 0 {
+            lines.append((" " + L10n.rosterFocus(focusDone), 203))
+        }
 
         let startRow = 3
         let startCol = max(2, (cols - innerW - 2) / 2 + 1)

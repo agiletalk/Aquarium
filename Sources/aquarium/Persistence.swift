@@ -18,6 +18,7 @@ struct SaveState: Codable {
     var lighting: String
     var fish: [FishState]
     var visitorSeen: [String: Int]? // 도감 손님 기록
+    var focusDone: Int?             // 완료한 뽀모도로 세션 수
 }
 
 enum SaveStore {
