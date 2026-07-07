@@ -160,6 +160,7 @@ enum L10n {
               aquarium --card       어항 명함 PNG 생성 (SNS 공유용)
               aquarium --install-hook  현재 git 레포에 커밋 보상 훅 설치
               aquarium --reward     커밋 보상 적립 (git hook이 호출)
+              aquarium --achievements  업적 목록 출력
               aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
               aquarium --version    버전 출력
 
@@ -185,6 +186,7 @@ enum L10n {
               aquarium --card        render a shareable PNG tank card
               aquarium --install-hook  install the commit-reward hook in this repo
               aquarium --reward      bank a commit reward (called by the git hook)
+              aquarium --achievements  list all achievements
               aquarium --status      one-line tank summary (for tmux status bars)
               aquarium --version     print version
 
@@ -201,6 +203,24 @@ enum L10n {
               AQUARIUM_LANG=ko|en                     force language
               AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
             """
+    }
+
+    // MARK: - Achievements
+
+    static func achievementUnlocked(_ name: String) -> String {
+        t("🏆 업적 달성: \(name)!", "🏆 Achievement unlocked: \(name)!")
+    }
+    static func achievementsBatch(_ n: Int) -> String {
+        t("🏆 그동안의 업적 \(n)개를 획득했어요!", "🏆 Unlocked \(n) achievements so far!")
+    }
+    static func achievementsHeader(_ have: Int, _ total: Int) -> String {
+        t("🏆 업적 \(have)/\(total) 달성", "🏆 Achievements \(have)/\(total)")
+    }
+    static func rosterAchievements(_ have: Int, _ total: Int) -> String {
+        t("업적   \(have)/\(total)  (aquarium --achievements)", "Badges   \(have)/\(total)  (aquarium --achievements)")
+    }
+    static func cardAchievements(_ have: Int, _ total: Int) -> String {
+        t("🏆 업적 \(have)/\(total) 달성", "🏆 \(have)/\(total) achievements")
     }
 
     // MARK: - Commit rewards

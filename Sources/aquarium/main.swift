@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.3.0"
+let appVersion = "2.4.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -87,6 +87,10 @@ if arguments.contains("--card") {
 }
 if arguments.contains("--reward") {
     print(L10n.rewardDeposited(RewardInbox.deposit()))
+    exit(0)
+}
+if arguments.contains("--achievements") {
+    Achievements.printAll()
     exit(0)
 }
 if arguments.contains("--install-hook") {

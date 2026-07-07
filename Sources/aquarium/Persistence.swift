@@ -21,6 +21,8 @@ struct SaveState: Codable {
     var focusDone: Int?             // 완료한 뽀모도로 세션 수
     var tankFull: Bool?             // 저장 시점에 정원이 찼는지 (--status 표시용)
     var commitRewards: Int?         // 커밋 보상 누적 횟수
+    var stats: [String: Int]?       // 업적 판정용 카운터
+    var unlockedAchievements: [String]? // 획득한 업적 id
 }
 
 enum SaveStore {

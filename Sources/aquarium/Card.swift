@@ -32,7 +32,19 @@ enum Card {
         if let commits = save.commitRewards, commits > 0 {
             statLines.append(L10n.cardCommits(commits))
         }
+        let unlocked = Achievements.all.filter {
+            Achievements.isUnlocked($0, stats: Achievements.mergedStats(from: save))
+        }.count
+        if unlocked > 0 {
+            statLines.append(L10n.cardAchievements(unlocked, Achievements.all.count))
+        }
         statLines.append("github.com/agiletalk/Aquarium")
+
+        // 명함 생성 카운트를 저장에 반영 (다음 실행 때 업적 판정)
+        var bumped = save
+        bumped.stats = (bumped.stats ?? [:])
+        bumped.stats?["cards", default: 0] += 1
+        SaveStore.write(bumped)
 
         let url = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             .appendingPathComponent("aquarium-card.png")

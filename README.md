@@ -66,6 +66,16 @@ down within seconds; otherwise it's delivered the next time you visit. Your
 lifetime total shows up in the tank log and on your card — these fish were
 literally *raised on your commits*.
 
+## Achievements (`--achievements`)
+
+100 badges to collect across everything you do — births, feeding, focus
+sessions, commits, rare visitors, tank age, and more. Unlocks pop up live with
+a chime, and your progress shows in the tank log and on your card.
+
+```sh
+aquarium --achievements   # full list with ✔ / locked progress
+```
+
 ## Share your tank (`--card`)
 
 Render your actual tank — your fish, their names, your records — into a PNG

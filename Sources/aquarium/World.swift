@@ -179,6 +179,11 @@ final class World {
     private var focusDone = 0       // completed sessions, persisted
     private var commitRewards = 0   // total commit rewards, persisted
     private var nextInboxCheck: Double = 0
+    private var stats: [String: Int] = [:]        // achievement counters
+    private var unlocked: Set<String> = []        // unlocked achievement ids
+    private var nextAchvCheck: Double = 0
+    private var wasNight = false
+    private func bump(_ key: String, _ n: Int = 1) { stats[key, default: 0] += n }
 
     private var chestX: Int? // left column of the chest; nil when the tank is too narrow
     private var chestOpenUntil: Double = 0
@@ -232,6 +237,10 @@ final class World {
             for _ in 0..<5 { spawnAdult() }
         }
         refreshEnvNight()
+        wasNight = isNight
+        bump("launches")
+        let initialNew = unlockSatisfied()
+        if !initialNew.isEmpty { post(L10n.achievementsBatch(initialNew.count)) }
     }
 
     func resize(cols: Int, rows: Int) {
@@ -258,6 +267,8 @@ final class World {
         visitorSeen = save.visitorSeen ?? [:]
         focusDone = save.focusDone ?? 0
         commitRewards = save.commitRewards ?? 0
+        stats = save.stats ?? [:]
+        unlocked = Set(save.unlockedAchievements ?? [])
 
         // Reserve saved names first so generated names can't collide with them
         for state in save.fish {
@@ -296,6 +307,7 @@ final class World {
         for age in bornAges {
             if age >= 45 {
                 spawnAdult() // already grew up while away
+                bump("born")
             } else if let parent = fish.randomElement() {
                 spawnBaby(near: parent)
             }
@@ -327,7 +339,9 @@ final class World {
             visitorSeen: visitorSeen,
             focusDone: focusDone,
             tankFull: fish.count >= maxFish,
-            commitRewards: commitRewards)
+            commitRewards: commitRewards,
+            stats: stats,
+            unlockedAchievements: Array(unlocked))
     }
 
     func writeSave() {
@@ -465,6 +479,7 @@ final class World {
         baby.bornAtEpoch = Date().timeIntervalSince1970
         clampToTank(&baby)
         fish.append(baby)
+        bump("born")
         return baby.name
     }
 
@@ -479,11 +494,13 @@ final class World {
     func feed() {
         guard food.count < 60 else { return }
         sprinkleFood(Int.random(in: 4...7))
+        bump("feedActions")
         post(L10n.foodSprinkled)
     }
 
     private func sprinkleFood(_ count: Int) {
         guard cols > 8 else { return }
+        bump("fed", count)
         for _ in 0..<count {
             food.append(Food(x: Double.random(in: 2...Double(cols - 3)),
                              y: Double(surfaceRow + 1),
@@ -544,7 +561,9 @@ final class World {
     }
 
     func toggleMusic() {
+        let wasPlaying = MusicPlayer.shared.isPlaying
         post(MusicPlayer.shared.toggle())
+        if !wasPlaying && MusicPlayer.shared.isPlaying { bump("music") }
     }
 
     /// Live food: a school of brine shrimp that actively flees the fish.
@@ -552,7 +571,9 @@ final class World {
         guard cols > 12, shrimp.count < 30 else { return }
         let now = self.now
         let originX = Double.random(in: 4...Double(cols - 5))
-        for _ in 0..<Int.random(in: 6...10) {
+        let batch = Int.random(in: 6...10)
+        bump("shrimp", batch)
+        for _ in 0..<batch {
             shrimp.append(Shrimp(x: originX + Double.random(in: -2...2),
                                  y: Double(surfaceRow) + 1 + Double.random(in: 0...1.5),
                                  vx: Double.random(in: -0.3...0.3),
@@ -577,6 +598,7 @@ final class World {
             guard abs(r - row) <= 1, col >= c0 - 1, col <= c0 + f.art.count else { continue }
 
             post(L10n.touched(f.name))
+            bump("touch"); if isNight { bump("touchNight") }
             Sound.playTouch()
             fish[i].panicUntil = now + 1.5
             fish[i].dir = Double(c0 + f.art.count / 2) >= Double(col) ? 1 : -1
@@ -621,6 +643,15 @@ final class World {
             nextInboxCheck = now + 5
             let commits = RewardInbox.consume()
             if commits > 0 { applyCommitReward(commits) }
+        }
+        if isNight && !wasNight { bump("nights") }
+        wasNight = isNight
+        if now >= nextAchvCheck {
+            nextAchvCheck = now + 1
+            for a in unlockSatisfied() {
+                post(L10n.achievementUnlocked(a.name))
+                Sound.playChime()
+            }
         }
 
         updateFish(now)
@@ -680,6 +711,7 @@ final class World {
                 if abs(food[fi].x - f.mouthX) < 2.0, abs(food[fi].y - f.y) < 1.3 {
                     food.remove(at: fi)
                     f.eaten += 1
+                    bump("meals")
                     nextBreed -= 30 // well-fed tanks grow faster
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
@@ -692,6 +724,7 @@ final class World {
                 if abs(shrimp[si].x - f.mouthX) < 1.5, abs(shrimp[si].y - f.y) < 1.2 {
                     shrimp.remove(at: si)
                     f.eaten += 1
+                    bump("meals"); bump("shrimpEaten")
                     nextBreed -= 45 // live food is extra nutritious
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
@@ -835,6 +868,7 @@ final class World {
         if now >= chestOpenUntil, now >= chestNextOpen {
             chestOpenUntil = now + Double.random(in: 2...3.5)
             chestNextOpen = now + Double.random(in: 10...18)
+            bump("chest")
             // The lid popping open startles fish loitering near the bottom.
             let center = Double(cx) + 3
             for i in fish.indices where abs(fish[i].x - center) < 12
@@ -996,6 +1030,21 @@ final class World {
             return [Array(" .-\"\"\"-. "), Array("( °   ° )"), Array(tentacles)]
         }
     }
+
+    /// 조건을 만족하지만 아직 안 잠긴 업적을 잠금 해제하고 그 목록을 반환.
+    @discardableResult
+    private func unlockSatisfied() -> [Achievement] {
+        let merged = Achievements.mergedStats(from: saveState())
+        var newly: [Achievement] = []
+        for a in Achievements.all where !unlocked.contains(a.id)
+            && Achievements.isUnlocked(a, stats: merged) {
+            unlocked.insert(a.id)
+            newly.append(a)
+        }
+        return newly
+    }
+
+    var achievementCount: Int { unlocked.count }
 
     // MARK: - Rendering
 
@@ -1383,6 +1432,7 @@ final class World {
         if commitRewards > 0 {
             lines.append((" " + L10n.rosterCommits(commitRewards), 114))
         }
+        lines.append((" " + L10n.rosterAchievements(unlocked.count, Achievements.all.count), 226))
 
         let startRow = 3
         let startCol = max(2, (cols - innerW - 2) / 2 + 1)
