@@ -97,6 +97,24 @@ enum VisitorKind: String, CaseIterable {
     case whale, turtle, octopus
 }
 
+let whaleArtRight: [[Character]] = [
+    "     .-'             ",
+    "'--./ /     _.---.   ",
+    "'-,  (__..-`       \\ ",
+    "   \\          o     |",
+    "    `,.__.   ,__.--/ ",
+    "      '._/_.'___.-`  ",
+].map(Array.init)
+
+let whaleArtLeft: [[Character]] = [
+    "             `-.     ",
+    "   .---._     \\ \\.--`",
+    " /       '-..__)  ,-`",
+    "|     o          /   ",
+    " \\--.__,   .__.,'    ",
+    "  '-.___`._\\_.`      ",
+].map(Array.init)
+
 struct Visitor {
     var kind: VisitorKind
     var x: Double
@@ -950,9 +968,7 @@ final class World {
     private func visitorArt(_ v: Visitor) -> [[Character]] {
         switch v.kind {
         case .whale:
-            return v.dir < 0
-                ? [Array("  ________________/\\ "), Array(" (_°_______________\\/")]
-                : [Array(" /\\________________  "), Array("\\/_______________°_) ")]
+            return v.dir > 0 ? whaleArtRight : whaleArtLeft
         case .turtle:
             return v.dir > 0
                 ? [Array("  ______   "), Array("~(______)°>")]
@@ -1221,7 +1237,8 @@ final class World {
             for (ci, ch) in rowArt.enumerated() where ch != " " {
                 let c = startC + ci
                 guard c > 0, c < cols - 1 else { continue }
-                grid[r][c] = Cell(ch: ch, color: ch == "°" ? 231 : baseColor)
+                let isEye = ch == "°" || (v.kind == .whale && ch == "o")
+                grid[r][c] = Cell(ch: ch, color: isEye ? 231 : baseColor)
             }
         }
     }
