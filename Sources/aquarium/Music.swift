@@ -110,7 +110,7 @@ final class MusicPlayer {
         if isPlaying {
             engine.stop()
             isPlaying = false
-            return "음악을 껐어요"
+            return L10n.musicOff
         }
         setupIfNeeded()
         do {
@@ -118,9 +118,9 @@ final class MusicPlayer {
             try engine.start()
             isPlaying = true
             lastAnnounced = -1
-            return "음악을 켰어요 (DOS 감성 칩튠)"
+            return L10n.musicOn
         } catch {
-            return "음악을 재생할 수 없어요 (오디오 장치를 못 찾음)"
+            return L10n.musicFailed
         }
     }
 
@@ -128,7 +128,7 @@ final class MusicPlayer {
     func pollNewTitle() -> String? {
         guard isPlaying, lastAnnounced != songIndex else { return nil }
         lastAnnounced = songIndex
-        return songs[songIndex].title
+        return L10n.songTitle(songIndex)
     }
 
     private func setupIfNeeded() {

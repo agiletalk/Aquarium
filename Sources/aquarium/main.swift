@@ -1,10 +1,10 @@
 import Foundation
 
-let appVersion = "1.7.0"
+let appVersion = "1.8.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
-        print("><> 아직 어항이 없어요 — aquarium 을 실행해 물고기를 만나보세요!")
+        print(L10n.statusNoTank)
         return
     }
     let nowEpoch = Date().timeIntervalSince1970
@@ -12,33 +12,17 @@ func printStatus() {
     let remaining = save.breedRemaining - (nowEpoch - save.savedAt)
     let breedText: String
     if remaining <= 0 {
-        breedText = "아기가 기다리고 있어요!"
+        breedText = L10n.statusBabyWaiting
     } else if remaining >= 90 {
-        breedText = "다음 탄생까지 \(Int(remaining / 60))분"
+        breedText = L10n.statusNextBirthMinutes(Int(remaining / 60))
     } else {
-        breedText = "다음 탄생까지 \(Int(remaining))초"
+        breedText = L10n.statusNextBirthSeconds(Int(remaining))
     }
-    print("><> \(save.fish.count)마리 · \(days)일째 · \(breedText)")
+    print(L10n.statusLine(count: save.fish.count, days: days, breed: breedText))
 }
 
 func printHelp() {
-    print("""
-    aquarium — 터미널 속 힐링 ASCII 어항
-
-    사용법:
-      aquarium             어항 실행
-      aquarium --status    저장된 어항 요약 한 줄 출력 (tmux 상태바용)
-      aquarium --version   버전 출력
-
-    키:
-      f  먹이 주기          g  생먹이(브라인슈림프)
-      i  도감               n  조명 (자동 → 밤 → 낮)
-      m  음악 (칩튠 플레이리스트 켜기/끄기)
-      q  종료 (자동 저장)   마우스 클릭: 물고기 만지기
-
-    환경변수:
-      AQUARIUM_VISITOR=whale|turtle|octopus   손님이 자주 옵니다 (이스터에그)
-    """)
+    print(L10n.helpText)
 }
 
 let arguments = CommandLine.arguments.dropFirst()
@@ -55,7 +39,7 @@ if arguments.contains("--version") {
     exit(0)
 }
 if let unknown = arguments.first {
-    fputs("알 수 없는 옵션: \(unknown)\n--help 를 참고하세요.\n", stderr)
+    fputs(L10n.unknownOption(unknown) + "\n", stderr)
     exit(1)
 }
 
@@ -73,7 +57,7 @@ let world = World(cols: initialSize.cols, rows: initialSize.rows,
 func shutdown() -> Never {
     world.writeSave()
     Terminal.shared.teardown()
-    print("어항을 저장했어요. 다음에 또 만나요! ><>  <><")
+    print(L10n.goodbye)
     exit(0)
 }
 

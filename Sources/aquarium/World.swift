@@ -34,14 +34,6 @@ let allSpecies: [Species] = [
 
 let fishPalette: [UInt8] = [196, 202, 208, 214, 220, 226, 201, 213, 199, 51, 45, 39, 118, 82, 141, 129]
 
-let fishNamePool = [
-    "방울이", "통통이", "쏜살이", "반짝이", "초롱이", "몽실이", "뽀글이", "살랑이",
-    "여울이", "물결이", "미르", "파랑이", "노랑이", "분홍이", "산호", "진주",
-    "소라", "새벽이", "노을이", "별이", "달이", "구름이", "이슬이", "방긋이",
-    "날쌘이", "느긋이", "용용이", "꼬물이", "꿈틀이", "코랄", "아쿠아", "바다",
-    "하늘이", "은빛이", "금빛이", "무지개", "솜사탕", "젤리", "푸딩", "모카",
-]
-
 /// 을/를 — final-consonant(받침) aware object particle
 func objectParticle(_ name: String) -> String {
     guard let scalar = name.unicodeScalars.last, (0xAC00...0xD7A3).contains(scalar.value) else { return "를" }
@@ -103,14 +95,6 @@ struct Shrimp {
 
 enum VisitorKind: String, CaseIterable {
     case whale, turtle, octopus
-
-    var label: String {
-        switch self {
-        case .whale: return "고래"
-        case .turtle: return "거북이"
-        case .octopus: return "문어"
-        }
-    }
 }
 
 struct Visitor {
@@ -290,9 +274,9 @@ final class World {
         }
 
         if bornAges.isEmpty {
-            post("어항에 돌아오신 걸 환영해요! (물고기 \(fish.count)마리)")
+            post(L10n.welcomeBack(count: fish.count))
         } else {
-            post("다녀오신 사이 물고기 \(bornAges.count)마리가 태어났어요! (\(fish.count)마리)")
+            post(L10n.offlineBirths(bornAges.count, total: fish.count))
         }
     }
 
@@ -329,9 +313,9 @@ final class World {
         }
         refreshEnvNight()
         switch lighting {
-        case .auto: post("조명: 자동 (지금은 \(isNight ? "밤" : "낮"))")
-        case .night: post("조명: 밤")
-        case .day: post("조명: 낮")
+        case .auto: post(L10n.lightingAuto(isNight: isNight))
+        case .night: post(L10n.lightingNight)
+        case .day: post(L10n.lightingDay)
         }
     }
 
@@ -403,13 +387,13 @@ final class World {
     }
 
     private func nextName() -> String {
-        if let name = fishNamePool.shuffled().first(where: { !usedNames.contains($0) }) {
+        if let name = L10n.fishNames.shuffled().first(where: { !usedNames.contains($0) }) {
             usedNames.insert(name)
             return name
         }
         var suffix = 2
         while true {
-            let name = fishNamePool.randomElement()! + "\(suffix)"
+            let name = L10n.fishNames.randomElement()! + "\(suffix)"
             if !usedNames.contains(name) {
                 usedNames.insert(name)
                 return name
@@ -464,7 +448,7 @@ final class World {
                              vy: Double.random(in: 0.12...0.28),
                              restingSince: nil))
         }
-        post("먹이를 뿌렸어요! 물고기들이 몰려듭니다~")
+        post(L10n.foodSprinkled)
     }
 
     private func post(_ text: String) {
@@ -492,7 +476,7 @@ final class World {
                                  vy: Double.random(in: 0.05...0.2),
                                  bornAt: now))
         }
-        post("브라인슈림프를 풀었어요! 사냥 개시!")
+        post(L10n.shrimpReleased)
     }
 
     /// Handles a mouse click at 0-based grid coordinates.
@@ -509,7 +493,7 @@ final class World {
             let c0 = Int(f.x.rounded())
             guard abs(r - row) <= 1, col >= c0 - 1, col <= c0 + f.art.count else { continue }
 
-            post("\(f.name)\(objectParticle(f.name)) 만졌어요!")
+            post(L10n.touched(f.name))
             Sound.playTouch()
             fish[i].panicUntil = now + 1.5
             fish[i].dir = Double(c0 + f.art.count / 2) >= Double(col) ? 1 : -1
@@ -545,7 +529,7 @@ final class World {
             writeSave()
         }
         if let title = MusicPlayer.shared.pollNewTitle() {
-            post("♪ 지금 나오는 곡: \(title)")
+            post(L10n.nowPlaying(title))
         }
 
         updateFish(now)
@@ -562,7 +546,7 @@ final class World {
             nextBreed = now + Double.random(in: 180...300)
             if fish.count < maxFish, let parent = fish.randomElement() {
                 let name = spawnBaby(near: parent)
-                post("아기 \(name)\(subjectParticle(name)) 태어났어요! (\(fish.count)마리)")
+                post(L10n.babyBorn(name, count: fish.count))
             }
         }
     }
@@ -864,7 +848,7 @@ final class World {
                 inkCloud = (v.x + 4, v.y + 1, now)
                 visitor = nil
                 scheduleNextVisitor(now)
-                post("문어가 먹물을 뿜고 사라졌어요!")
+                post(L10n.octopusVanished)
             } else {
                 v.y += sin(now * 2) * 0.02
                 visitor = v
@@ -883,19 +867,19 @@ final class World {
                               x: dir > 0 ? -24 : Double(cols + 2),
                               y: Double(swimMinRow + 1),
                               dir: dir, departAt: nil)
-            post("저 멀리 고래가 지나가요…")
+            post(L10n.whalePassing)
         case .turtle:
             visitor = Visitor(kind: kind,
                               x: dir > 0 ? -12 : Double(cols + 2),
                               y: Double.random(in: Double(swimMinRow + 2)...Double(max(swimMinRow + 2, swimMaxRow - 4))),
                               dir: dir, departAt: nil)
-            post("거북이가 놀러 왔어요!")
+            post(L10n.turtleVisiting)
         case .octopus:
             visitor = Visitor(kind: kind,
                               x: Double.random(in: 4...Double(max(5, cols - 14))),
                               y: Double.random(in: Double(swimMinRow + 2)...Double(max(swimMinRow + 2, swimMaxRow - 5))),
                               dir: 1, departAt: now + 8)
-            post("문어가 나타났어요!")
+            post(L10n.octopusAppeared)
         }
         visitorSeen[kind.rawValue, default: 0] += 1
     }
@@ -927,7 +911,7 @@ final class World {
     func render() -> String {
         guard cols >= 34, rows >= 12 else {
             return ANSI.home + ANSI.clear + ANSI.fg(220)
-                + "터미널 창을 조금만 키워주세요! (최소 34x12)" + ANSI.reset
+                + L10n.enlargeTerminal + ANSI.reset
         }
 
         var grid = [[Cell]](repeating: [Cell](repeating: Cell(), count: cols), count: gridRows)
@@ -1229,19 +1213,14 @@ final class World {
         let elapsed = Int(now - startTime)
         let timeStr = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
         let days = max(1, Int((Date().timeIntervalSince1970 - tankBornAt) / 86400) + 1)
-        let modeLabel: String
-        switch lighting {
-        case .auto: modeLabel = isNight ? "밤·자동" : "낮·자동"
-        case .night: modeLabel = "밤"
-        case .day: modeLabel = "낮"
-        }
+        let modeLabel = L10n.modeLabel(auto: lighting == .auto, night: isNight)
         let sep = ANSI.fg(240) + "  |  "
-        var line = ANSI.fg(51) + " 물고기 \(fish.count)마리"
-            + sep + ANSI.fg(214) + "먹이 \(food.count + shrimp.count)"
-            + sep + ANSI.fg(250) + "\(days)일째 \(timeStr)"
+        var line = ANSI.fg(51) + " " + L10n.statusFish(fish.count)
+            + sep + ANSI.fg(214) + L10n.statusFood(food.count + shrimp.count)
+            + sep + ANSI.fg(250) + L10n.statusDay(days, timeStr)
             + sep + ANSI.fg(147) + modeLabel
             + (MusicPlayer.shared.isPlaying ? ANSI.fg(219) + " ♪" : "")
-            + sep + ANSI.fg(245) + "[f] 먹이  [g] 생먹이  [i] 도감  [n] 조명  [m] 음악  [q] 종료"
+            + sep + ANSI.fg(245) + L10n.helpLine
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }
@@ -1272,7 +1251,7 @@ final class World {
     /// double-width Hangul can't shift the grid cells around it.
     private func rosterOverlay() -> String {
         guard cols >= 50, gridRows >= 12 else {
-            return pos(3, 3) + ANSI.fg(220) + " 도감을 보려면 창을 키워주세요 " + ANSI.reset
+            return pos(3, 3) + ANSI.fg(220) + " " + L10n.rosterEnlarge + " " + ANSI.reset
         }
         let innerW = min(46, cols - 8)
         let maxList = max(1, gridRows - 9)
@@ -1283,23 +1262,23 @@ final class World {
         var lines: [(text: String, color: UInt8)] = []
         for f in shown {
             let days = Int((nowEpoch - f.bornAtEpoch) / 86400)
-            let age = days <= 0 ? "오늘" : "\(days)일째"
+            let age = days <= 0 ? L10n.rosterToday : L10n.rosterDays(days)
             let line = " " + pad(f.name, to: 11) + pad(String(f.art), to: 10)
-                + pad(age, to: 9) + "먹이 \(f.eaten)"
+                + pad(age, to: 9) + L10n.rosterEaten(f.eaten)
             lines.append((line, 252))
         }
         if sorted.count > shown.count {
-            lines.append((" …외 \(sorted.count - shown.count)마리", 245))
+            lines.append((" " + L10n.rosterMore(sorted.count - shown.count), 245))
         }
         lines.append(("", 252))
-        let seen = " 손님 기록   고래 \(visitorSeen["whale", default: 0])"
-            + " · 거북이 \(visitorSeen["turtle", default: 0])"
-            + " · 문어 \(visitorSeen["octopus", default: 0])"
+        let seen = " " + L10n.rosterVisitors(whale: visitorSeen["whale", default: 0],
+                                             turtle: visitorSeen["turtle", default: 0],
+                                             octopus: visitorSeen["octopus", default: 0])
         lines.append((seen, 117))
 
         let startRow = 3
         let startCol = max(2, (cols - innerW - 2) / 2 + 1)
-        let title = "[ 우리 어항 도감 · \(fish.count)마리 ]"
+        let title = L10n.rosterTitle(fish.count)
         var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
             + ANSI.fg(51) + title
             + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
