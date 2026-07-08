@@ -176,6 +176,11 @@ final class World {
 
     private var usedNames: Set<String> = []
     private(set) var rosterOpen = false
+    private(set) var mailboxOpen = false
+    private var travelers: [Traveler] = []
+    private var mailbox: [Postcard] = []
+    private var nextPostcardCheck: Double = 0
+    private var nowEpoch: Double { Date().timeIntervalSince1970 }
 
     private var focusUntil: Double? // systemUptime deadline of the running pomodoro
     private var focusDone = 0       // completed sessions, persisted
@@ -243,6 +248,7 @@ final class World {
         bump("launches")
         let initialNew = unlockSatisfied()
         if !initialNew.isEmpty { post(L10n.achievementsBatch(initialNew.count)) }
+        deliverPostcards(announce: false)
     }
 
     func resize(cols: Int, rows: Int) {
@@ -271,6 +277,8 @@ final class World {
         commitRewards = save.commitRewards ?? 0
         stats = save.stats ?? [:]
         unlocked = Set(save.unlockedAchievements ?? [])
+        travelers = save.travelers ?? []
+        mailbox = save.mailbox ?? []
 
         // Reserve saved names first so generated names can't collide with them
         for state in save.fish {
@@ -333,7 +341,9 @@ final class World {
             tankFull: fish.count >= maxFish,
             commitRewards: commitRewards,
             stats: stats,
-            unlockedAchievements: Array(unlocked))
+            unlockedAchievements: Array(unlocked),
+            travelers: travelers.isEmpty ? nil : travelers,
+            mailbox: mailbox.isEmpty ? nil : mailbox)
     }
 
     func writeSave() {
@@ -570,6 +580,15 @@ final class World {
 
     func toggleRoster() {
         rosterOpen.toggle()
+        if rosterOpen { mailboxOpen = false }
+    }
+
+    func toggleMailbox() {
+        mailboxOpen.toggle()
+        if mailboxOpen {
+            rosterOpen = false
+            for i in mailbox.indices { mailbox[i].read = true } // 열면 읽음 처리
+        }
     }
 
     func toggleMusic() {
@@ -597,8 +616,9 @@ final class World {
 
     /// Handles a mouse click at 0-based grid coordinates.
     func touch(col: Int, row: Int) {
-        if rosterOpen {
+        if rosterOpen || mailboxOpen {
             rosterOpen = false
+            mailboxOpen = false
             return
         }
         let now = self.now
@@ -667,6 +687,10 @@ final class World {
                 Sound.playChime()
             }
         }
+        if !ephemeral, now >= nextPostcardCheck {
+            nextPostcardCheck = now + 7
+            deliverPostcards(announce: true)
+        }
 
         updateFish(now)
         updateFood(now)
@@ -684,7 +708,11 @@ final class World {
                 let name = spawnBaby(near: parent)
                 post(L10n.babyBorn(name, count: fish.count))
             } else if fish.count >= maxFish {
-                post(L10n.tankFull(maxFish))
+                if Double.random(in: 0...1) < 0.6, let idx = oldestAdultIndex() {
+                    departOnJourney(idx)
+                } else {
+                    post(L10n.tankFull(maxFish))
+                }
             }
         }
     }
@@ -1045,6 +1073,52 @@ final class World {
         }
     }
 
+    // MARK: - Wanderlust & postcards
+
+    private func oldestAdultIndex() -> Int? {
+        fish.indices
+            .filter { fish[$0].growAt == nil }
+            .min { fish[$0].bornAtEpoch < fish[$1].bornAtEpoch }
+    }
+
+    /// 물고기가 스스로 여행을 떠남 — 자리를 비우고 나중에 엽서를 보낸다
+    private func departOnJourney(_ index: Int) {
+        let f = fish.remove(at: index)
+        let e = nowEpoch
+        travelers.append(Traveler(name: f.name,
+                                  departedAt: e,
+                                  nextPostcardAt: e + Double.random(in: 180...420),
+                                  sent: 0))
+        post(L10n.departedWander(f.name))
+    }
+
+    /// 도착 예정인 엽서를 배달. announce=false면 실행 시 밀린 엽서를 요약해 알림.
+    private func deliverPostcards(announce: Bool) {
+        let e = nowEpoch
+        var delivered = 0
+        for i in travelers.indices {
+            while travelers[i].sent < 5, travelers[i].nextPostcardAt <= e {
+                mailbox.append(Postcard(from: travelers[i].name,
+                                        location: Int.random(in: 0..<L10n.postcardLocationCount),
+                                        message: Int.random(in: 0..<L10n.postcardMessageCount),
+                                        at: travelers[i].nextPostcardAt,
+                                        read: false))
+                travelers[i].sent += 1
+                travelers[i].nextPostcardAt = e + Double.random(in: 600...1500)
+                delivered += 1
+            }
+        }
+        if mailbox.count > 50 { mailbox.removeFirst(mailbox.count - 50) }
+        guard delivered > 0 else { return }
+        writeSave()
+        if announce, let last = mailbox.last {
+            post(L10n.postcardArrived(last.from, L10n.postcardLocation(last.location)))
+            Sound.playChime()
+        } else if !announce {
+            post(L10n.postcardsBatch(delivered))
+        }
+    }
+
     /// 입양 인박스를 받아 물고기를 어항에 추가 (정원 초과 허용 — 선물은 특별하니까)
     private func ingestAdoptions() {
         for token in AdoptInbox.drain() {
@@ -1113,6 +1187,7 @@ final class World {
         }
         out += "\r\n" + statusLine(now) + "\u{1B}[K"
         if rosterOpen { out += rosterOverlay() }
+        if mailboxOpen { out += mailboxOverlay() }
         return out
     }
 
@@ -1409,6 +1484,8 @@ final class World {
             let clock = String(format: "%d:%02d", remain / 60, remain % 60)
             line += sep + ANSI.fg(203) + L10n.statusFocus(clock)
         }
+        let unread = mailbox.filter { !$0.read }.count
+        if unread > 0 { line += sep + ANSI.fg(213) + L10n.statusUnread(unread) }
         line += sep + ANSI.fg(245) + L10n.helpLine
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
@@ -1481,6 +1558,47 @@ final class World {
         let title = L10n.rosterTitle(fish.count)
         var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
             + ANSI.fg(51) + title
+            + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
+        var r = startRow + 1
+        for line in lines {
+            guard r < rows - 1 else { break }
+            out += pos(r, startCol) + ANSI.fg(245) + "|"
+                + ANSI.fg(line.color) + pad(line.text, to: innerW)
+                + ANSI.fg(245) + "|"
+            r += 1
+        }
+        out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
+        return out + ANSI.reset
+    }
+
+    /// 받은편지함 패널 (b 키)
+    private func mailboxOverlay() -> String {
+        guard cols >= 50, gridRows >= 12 else {
+            return pos(3, 3) + ANSI.fg(220) + " " + L10n.mailboxEnlarge + " " + ANSI.reset
+        }
+        let innerW = min(54, cols - 8)
+        let maxCards = max(1, (gridRows - 8) / 2)
+        let sorted = mailbox.sorted { $0.at > $1.at }
+
+        var lines: [(text: String, color: UInt8)] = []
+        if sorted.isEmpty {
+            lines.append((" " + L10n.mailboxEmpty, 245))
+        } else {
+            for pc in sorted.prefix(maxCards) {
+                let head = " \u{1F4EC} \(pc.from) · \(L10n.postcardLocation(pc.location)) · \(L10n.relativeTime(pc.at))"
+                lines.append((head, 117))
+                lines.append(("     \u{201C}\(L10n.postcardMessage(pc.message))\u{201D}", 252))
+            }
+            if sorted.count > maxCards {
+                lines.append((" " + L10n.rosterMore(sorted.count - maxCards), 245))
+            }
+        }
+
+        let startRow = 3
+        let startCol = max(2, (cols - innerW - 2) / 2 + 1)
+        let title = L10n.mailboxTitle(mailbox.count)
+        var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
+            + ANSI.fg(213) + title
             + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
         var r = startRow + 1
         for line in lines {

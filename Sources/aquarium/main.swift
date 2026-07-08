@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.5.0"
+let appVersion = "2.6.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -60,6 +60,19 @@ func installHook() {
     print(L10n.hookInstalled(hookPath))
 }
 
+func printMailbox() {
+    guard let save = SaveStore.load(), let mail = save.mailbox, !mail.isEmpty else {
+        print(L10n.mailboxEmpty)
+        return
+    }
+    print(ANSI.fg(213) + L10n.mailboxTitle(mail.count) + ANSI.reset)
+    for pc in mail.sorted(by: { $0.at > $1.at }) {
+        print(ANSI.fg(117) + "  \u{1F4EC} \(pc.from) · \(L10n.postcardLocation(pc.location)) · \(L10n.relativeTime(pc.at))"
+              + ANSI.reset)
+        print(ANSI.fg(252) + "     \u{201C}\(L10n.postcardMessage(pc.message))\u{201D}" + ANSI.reset)
+    }
+}
+
 func printHelp() {
     print(L10n.helpText)
 }
@@ -91,6 +104,10 @@ if arguments.contains("--reward") {
 }
 if arguments.contains("--achievements") {
     Achievements.printAll()
+    exit(0)
+}
+if arguments.contains("--mailbox") {
+    printMailbox()
     exit(0)
 }
 if let i = arguments.firstIndex(of: "--release") {
@@ -175,6 +192,8 @@ mainLoop: while true {
                 world.toggleRoster()
             case "m", "M":
                 world.toggleMusic()
+            case "b", "B":
+                world.toggleMailbox()
             case "p", "P":
                 world.toggleFocus()
             case "q", "Q":

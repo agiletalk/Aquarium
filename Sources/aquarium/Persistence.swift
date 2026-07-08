@@ -25,6 +25,23 @@ struct SaveState: Codable {
     var commitRewards: Int?         // 커밋 보상 누적 횟수
     var stats: [String: Int]?       // 업적 판정용 카운터
     var unlockedAchievements: [String]? // 획득한 업적 id
+    var travelers: [Traveler]?      // 여행 떠난 물고기들 (엽서를 보냄)
+    var mailbox: [Postcard]?        // 받은 엽서
+}
+
+struct Traveler: Codable {
+    var name: String
+    var departedAt: Double      // epoch
+    var nextPostcardAt: Double  // epoch
+    var sent: Int
+}
+
+struct Postcard: Codable {
+    var from: String
+    var location: Int   // L10n 풀 인덱스 (언어 전환 대응)
+    var message: Int
+    var at: Double      // 받은 시각 epoch
+    var read: Bool
 }
 
 enum SaveStore {

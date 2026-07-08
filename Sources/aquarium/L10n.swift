@@ -113,8 +113,8 @@ enum L10n {
         return t(night ? "밤" : "낮", night ? "night" : "day")
     }
     static var helpLine: String {
-        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [n] 조명  [m] 음악  [q] 종료",
-          "[f] feed  [g] live food  [p] focus  [i] log  [n] lights  [m] music  [q] quit")
+        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [b] 편지함  [n] 조명  [m] 음악  [q] 종료",
+          "[f] feed  [g] live food  [p] focus  [i] log  [b] mail  [n] lights  [m] music  [q] quit")
     }
     static var enlargeTerminal: String { t("터미널 창을 조금만 키워주세요! (최소 34x12)", "Please enlarge the terminal! (min 34x12)") }
 
@@ -164,6 +164,7 @@ enum L10n {
               aquarium --release <이름>  물고기를 분양 코드로 내보내기
               aquarium --adopt <코드>    받은 분양 코드로 물고기 입양
               aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
+              aquarium --mailbox    받은편지함 출력
               aquarium --version    버전 출력
 
             키:
@@ -192,6 +193,7 @@ enum L10n {
               aquarium --release <name>  export a fish as a gift code
               aquarium --adopt <code>    adopt a fish from a gift code
               aquarium --status      one-line tank summary (for tmux status bars)
+              aquarium --mailbox     print your postcard mailbox
               aquarium --version     print version
 
             Keys:
@@ -207,6 +209,54 @@ enum L10n {
               AQUARIUM_LANG=ko|en                     force language
               AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
             """
+    }
+
+    // MARK: - Wanderlust & postcards (방랑벽 & 엽서)
+
+    static func departedWander(_ name: String) -> String {
+        isKorean ? "\(name)\(subjectParticle(name)) 넓은 바다로 여행을 떠났어요 🌊"
+                 : "\(name) set off to explore the open sea 🌊"
+    }
+    static func postcardArrived(_ name: String, _ location: String) -> String {
+        isKorean ? "\(name)\(subjectParticle(name)) \(location)에서 엽서를 보냈어요 🪸"
+                 : "\(name) sent a postcard from \(location) 🪸"
+    }
+    static func postcardsBatch(_ n: Int) -> String {
+        t("여행 간 친구들에게서 엽서 \(n)통이 도착했어요 📬", "\(n) postcards arrived from your travelers 📬")
+    }
+    static func mailboxTitle(_ n: Int) -> String { t("[ 받은편지함 · \(n)통 ]", "[ Mailbox · \(n) ]") }
+    static var mailboxEmpty: String {
+        t("아직 받은 엽서가 없어요. 여행 간 물고기가 보내줄 거예요.", "No postcards yet — your travelers will write.")
+    }
+    static var mailboxEnlarge: String { t("받은편지함을 보려면 창을 키워주세요", "Enlarge the window to read mail") }
+    static func statusUnread(_ n: Int) -> String { "\u{2709} \(n)" }
+
+    static let postcardLocationCount = 8
+    static func postcardLocation(_ i: Int) -> String {
+        let ko = ["산호초", "심해", "난파선", "해초 숲", "먼바다", "열대 섬", "따뜻한 해류", "반짝이는 여울"]
+        let en = ["the coral reef", "the deep", "a shipwreck", "the kelp forest",
+                  "the open sea", "a tropical isle", "a warm current", "a sparkling shoal"]
+        let a = isKorean ? ko : en
+        return a[min(max(0, i), a.count - 1)]
+    }
+    static let postcardMessageCount = 8
+    static func postcardMessage(_ i: Int) -> String {
+        let ko = ["여긴 정말 넓어요!", "새 친구를 잔뜩 사귀었어요", "가끔 어항이 그리워요", "물이 아주 따뜻해요",
+                  "오늘 고래를 봤어요!", "모험은 계속돼요", "당신 덕분에 용기가 났어요", "별빛 아래서 헤엄쳐요"]
+        let en = ["It's so vast out here!", "Made tons of new friends", "I miss the tank sometimes",
+                  "The water is lovely and warm", "Saw a whale today!", "The adventure continues",
+                  "You gave me courage", "Swimming under the starlight"]
+        let a = isKorean ? ko : en
+        return a[min(max(0, i), a.count - 1)]
+    }
+    static func relativeTime(_ at: Double) -> String {
+        let s = max(0, Date().timeIntervalSince1970 - at)
+        if s < 90 { return t("방금", "just now") }
+        let m = Int(s / 60)
+        if m < 60 { return t("\(m)분 전", "\(m)m ago") }
+        let h = m / 60
+        if h < 24 { return t("\(h)시간 전", "\(h)h ago") }
+        return t("\(h / 24)일 전", "\(h / 24)d ago")
     }
 
     // MARK: - Adoption (분양/입양)

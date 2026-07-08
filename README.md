@@ -66,6 +66,18 @@ down within seconds; otherwise it's delivered the next time you visit. Your
 lifetime total shows up in the tank log and on your card — these fish were
 literally *raised on your commits*.
 
+## Wanderlust & postcards (`b`)
+
+When the tank is full, an old fish will occasionally set off to explore the open
+sea on its own — freeing a slot so the tank keeps breathing, no manual culling.
+Days later it writes home, and the postcard lands in your **mailbox** (`b`):
+
+> 📬 Bubbles · the coral reef · 2m ago
+> "It's so vast out here!"
+
+Travelers keep in touch, so the fish you raised are never really gone. Check
+anytime with `aquarium --mailbox`.
+
 ## Gift a fish (`--release` / `--adopt`)
 
 A fish is just data — and the person you paste to *is* the network, no server
