@@ -113,8 +113,8 @@ enum L10n {
         return t(night ? "밤" : "낮", night ? "night" : "day")
     }
     static var helpLine: String {
-        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [b] 편지함  [n] 조명  [m] 음악  [q] 종료",
-          "[f] feed  [g] live food  [p] focus  [i] log  [b] mail  [n] lights  [m] music  [q] quit")
+        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [b] 편지함  [s] 후원  [n] 조명  [m] 음악  [q] 종료",
+          "[f] feed  [g] live food  [p] focus  [i] log  [b] mail  [s] support  [n] lights  [m] music  [q] quit")
     }
     static var enlargeTerminal: String { t("터미널 창을 조금만 키워주세요! (최소 34x12)", "Please enlarge the terminal! (min 34x12)") }
 
@@ -165,6 +165,7 @@ enum L10n {
               aquarium --adopt <코드>    받은 분양 코드로 물고기 입양
               aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
               aquarium --mailbox    받은편지함 출력
+              aquarium --sponsor    후원 링크 출력
               aquarium --version    버전 출력
 
             키:
@@ -194,6 +195,7 @@ enum L10n {
               aquarium --adopt <code>    adopt a fish from a gift code
               aquarium --status      one-line tank summary (for tmux status bars)
               aquarium --mailbox     print your postcard mailbox
+              aquarium --sponsor     print the support link
               aquarium --version     print version
 
             Keys:
@@ -210,6 +212,24 @@ enum L10n {
               AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
             """
     }
+
+    // MARK: - Support (후원)
+
+    static var sponsorTitle: String { t("[ 후원 · Support ☕ ]", "[ Support ☕ ]") }
+    static var sponsorThanks1: String {
+        t("이 어항은 무료이자 오픈소스예요.", "This little aquarium is free and open source.")
+    }
+    static var sponsorThanks2: String {
+        t("커피 한 잔이 새 물고기와 기능, 밤샘 디버깅의 연료가 됩니다 ☕",
+          "A coffee fuels new fish, features, and late-night debugging ☕")
+    }
+    static var sponsorOpenHint: String {
+        t("[o] 브라우저에서 열기   [s] 닫기", "[o] open in browser   [s] close")
+    }
+    static var sponsorOpened: String {
+        t("브라우저에서 후원 페이지를 열었어요. 고마워요! ☕", "Opened the sponsor page — thank you! ☕")
+    }
+    static var sponsorEnlarge: String { t("후원 안내를 보려면 창을 키워주세요", "Enlarge the window for the support page") }
 
     // MARK: - Wanderlust & postcards (방랑벽 & 엽서)
 

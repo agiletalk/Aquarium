@@ -2,6 +2,8 @@
 
 **English** | [한국어](README.ko.md)
 
+[![ko-fi](https://img.shields.io/badge/support-ko--fi-ff5e5b?logo=ko-fi&logoColor=white)](https://ko-fi.com/agiletalk)
+
 A tiny healing aquarium in your terminal. ASCII tropical fish swim around, bubbles rise, and over time baby fish are born.
 
 ![Aquarium demo — fish swimming, rushing to food, and a baby being born](demo.gif)
@@ -38,6 +40,7 @@ swift run -c release
 | `g` | Release live food (brine shrimp) — cue the chase scene |
 | `p` | Start/cancel a 25-minute pomodoro — finish and the fish get a feast |
 | `i` | Tank log — every fish's name, age, meals, and visitor sightings |
+| `s` | Support — a Ko-fi link (press `o` to open in browser) |
 | `n` | Lights — cycle auto → night → day |
 | `m` | Music on/off — a DOS-era chiptune playlist for lo-fi coding |
 | Mouse click | Pet a fish — it bloops and darts away |
@@ -159,3 +162,7 @@ AQUARIUM_LANG=ko aquarium   # or en
 - **A cleanup crew.** The snail `@` slowly crawls to sunken food and eats it; the crab `v(;,;)v` scuttles sideways and occasionally waves its claws. They work the night shift, too.
 - **Your tank persists.** State is saved to `~/.aquarium.json` on quit and restored on the next run — including fish born while you were away.
 - **At night** the tank dims, stars and a moon appear on the rim, fish doze near the bottom (`z`), and the jellyfish glows teal. Night kicks in automatically from 7pm to 7am or when your terminal/system uses a dark theme — or toggle with `n`.
+
+## Support
+
+Aquarium is free and open source, and always will be. If it brings a little calm to your terminal, you can [buy me a coffee on Ko-fi](https://ko-fi.com/agiletalk) — or just press `s` inside the app. It fuels new fish, features, and late-night debugging. ☕

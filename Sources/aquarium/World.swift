@@ -177,6 +177,7 @@ final class World {
     private var usedNames: Set<String> = []
     private(set) var rosterOpen = false
     private(set) var mailboxOpen = false
+    private(set) var sponsorOpen = false
     private var travelers: [Traveler] = []
     private var mailbox: [Postcard] = []
     private var nextPostcardCheck: Double = 0
@@ -580,15 +581,27 @@ final class World {
 
     func toggleRoster() {
         rosterOpen.toggle()
-        if rosterOpen { mailboxOpen = false }
+        if rosterOpen { mailboxOpen = false; sponsorOpen = false }
     }
 
     func toggleMailbox() {
         mailboxOpen.toggle()
         if mailboxOpen {
             rosterOpen = false
+            sponsorOpen = false
             for i in mailbox.indices { mailbox[i].read = true } // 열면 읽음 처리
         }
+    }
+
+    func toggleSponsor() {
+        sponsorOpen.toggle()
+        if sponsorOpen { rosterOpen = false; mailboxOpen = false }
+    }
+
+    func openSponsor() {
+        guard sponsorOpen else { return }
+        Support.openInBrowser()
+        post(L10n.sponsorOpened)
     }
 
     func toggleMusic() {
@@ -616,9 +629,10 @@ final class World {
 
     /// Handles a mouse click at 0-based grid coordinates.
     func touch(col: Int, row: Int) {
-        if rosterOpen || mailboxOpen {
+        if rosterOpen || mailboxOpen || sponsorOpen {
             rosterOpen = false
             mailboxOpen = false
+            sponsorOpen = false
             return
         }
         let now = self.now
@@ -1188,6 +1202,7 @@ final class World {
         out += "\r\n" + statusLine(now) + "\u{1B}[K"
         if rosterOpen { out += rosterOverlay() }
         if mailboxOpen { out += mailboxOverlay() }
+        if sponsorOpen { out += sponsorOverlay() }
         return out
     }
 
@@ -1599,6 +1614,38 @@ final class World {
         let title = L10n.mailboxTitle(mailbox.count)
         var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
             + ANSI.fg(213) + title
+            + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
+        var r = startRow + 1
+        for line in lines {
+            guard r < rows - 1 else { break }
+            out += pos(r, startCol) + ANSI.fg(245) + "|"
+                + ANSI.fg(line.color) + pad(line.text, to: innerW)
+                + ANSI.fg(245) + "|"
+            r += 1
+        }
+        out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
+        return out + ANSI.reset
+    }
+
+    /// 후원 안내 패널 (s 키)
+    private func sponsorOverlay() -> String {
+        guard cols >= 50, gridRows >= 10 else {
+            return pos(3, 3) + ANSI.fg(220) + " " + L10n.sponsorEnlarge + " " + ANSI.reset
+        }
+        let innerW = min(52, cols - 8)
+        let lines: [(text: String, color: UInt8)] = [
+            (" " + L10n.sponsorThanks1, 252),
+            (" " + L10n.sponsorThanks2, 252),
+            ("", 252),
+            (" \u{2615}  " + Support.display, 45),
+            ("", 252),
+            (" " + L10n.sponsorOpenHint, 245),
+        ]
+        let startRow = 4
+        let startCol = max(2, (cols - innerW - 2) / 2 + 1)
+        let title = L10n.sponsorTitle
+        var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
+            + ANSI.fg(219) + title
             + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
         var r = startRow + 1
         for line in lines {

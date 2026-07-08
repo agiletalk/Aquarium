@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.6.0"
+let appVersion = "2.7.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -110,6 +110,10 @@ if arguments.contains("--mailbox") {
     printMailbox()
     exit(0)
 }
+if arguments.contains("--sponsor") {
+    Support.printCLI()
+    exit(0)
+}
 if let i = arguments.firstIndex(of: "--release") {
     let name = (i + 1 < arguments.count) ? arguments[i + 1] : ""
     guard !name.isEmpty else {
@@ -194,6 +198,10 @@ mainLoop: while true {
                 world.toggleMusic()
             case "b", "B":
                 world.toggleMailbox()
+            case "s", "S":
+                world.toggleSponsor()
+            case "o", "O":
+                world.openSponsor()
             case "p", "P":
                 world.toggleFocus()
             case "q", "Q":
