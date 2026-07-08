@@ -66,6 +66,26 @@ down within seconds; otherwise it's delivered the next time you visit. Your
 lifetime total shows up in the tank log and on your card — these fish were
 literally *raised on your commits*.
 
+## Gift a fish (`--release` / `--adopt`)
+
+A fish is just data — and the person you paste to *is* the network, no server
+involved. Full tank? Gift one to a teammate:
+
+```sh
+aquarium --release Bubbles     # prints a one-line code
+# → AQUA1.eyJzcGVjaWVzIjoz...
+```
+
+They paste it back in Slack and adopt it — it swims into their tank with its
+full history intact:
+
+```sh
+aquarium --adopt AQUA1.eyJ...  # "You adopted Bubbles! (from chanju's tank)"
+```
+
+Set `AQUARIUM_TANKNAME` to stamp your name on the fish's passport; well-traveled
+fish carry their whole lineage. Gifted fish are welcomed even past the tank cap.
+
 ## Achievements (`--achievements`)
 
 100 badges to collect across everything you do — births, feeding, focus

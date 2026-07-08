@@ -161,6 +161,8 @@ enum L10n {
               aquarium --install-hook  현재 git 레포에 커밋 보상 훅 설치
               aquarium --reward     커밋 보상 적립 (git hook이 호출)
               aquarium --achievements  업적 목록 출력
+              aquarium --release <이름>  물고기를 분양 코드로 내보내기
+              aquarium --adopt <코드>    받은 분양 코드로 물고기 입양
               aquarium --status     저장된 어항 요약 한 줄 출력 (tmux 상태바용)
               aquarium --version    버전 출력
 
@@ -187,6 +189,8 @@ enum L10n {
               aquarium --install-hook  install the commit-reward hook in this repo
               aquarium --reward      bank a commit reward (called by the git hook)
               aquarium --achievements  list all achievements
+              aquarium --release <name>  export a fish as a gift code
+              aquarium --adopt <code>    adopt a fish from a gift code
               aquarium --status      one-line tank summary (for tmux status bars)
               aquarium --version     print version
 
@@ -204,6 +208,32 @@ enum L10n {
               AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
             """
     }
+
+    // MARK: - Adoption (분양/입양)
+
+    static func releasedCLI(_ name: String) -> String {
+        t("\(name) 분양 준비 완료! 아래 코드를 친구에게 전해주세요 (친구는 aquarium --adopt <코드> 실행):",
+          "\(name) is ready to gift! Share this code with a friend (they run: aquarium --adopt <code>):")
+    }
+    static func releaseNotFound(_ name: String) -> String {
+        t("'\(name)' 물고기를 찾을 수 없어요. 도감(i)에서 이름을 확인해주세요.",
+          "No fish named '\(name)'. Check names in the log (i).")
+    }
+    static var releaseFailed: String { t("분양 코드 생성에 실패했어요", "Failed to create the gift code") }
+    static func releaseDeparted(_ name: String) -> String {
+        isKorean ? "\(name)\(subjectParticle(name)) 새 어항으로 떠났어요 👋" : "\(name) set off for a new tank 👋"
+    }
+    static var adoptInvalid: String { t("올바른 분양 코드가 아니에요", "That is not a valid gift code") }
+    static func adoptQueued(_ name: String) -> String {
+        t("\(name) 입양 코드를 받았어요! 어항을 열면 헤엄쳐 들어옵니다.",
+          "Got the gift code for \(name)! It will swim in when you open your tank.")
+    }
+    static func adopted(_ name: String, from: String?) -> String {
+        let base = isKorean ? "\(name)\(objectParticle(name)) 입양했어요!" : "You adopted \(name)!"
+        guard let from, !from.isEmpty else { return base }
+        return isKorean ? base + " (\(from)네 어항 출신)" : base + " (from \(from)'s tank)"
+    }
+    static func rosterTravelers(_ n: Int) -> String { t("여행 온 물고기   \(n)마리", "Travelers   \(n)") }
 
     // MARK: - Achievements
 

@@ -8,6 +8,8 @@ struct FishState: Codable {
     var growRemaining: Double? // nil = adult
     var name: String?          // optional: v1.2 saves have no names
     var bornAt: Double?        // wall-clock epoch
+    var id: String?            // 분양용 고유 id
+    var origin: [String]?      // 거쳐온 어항들 (여권)
 }
 
 struct SaveState: Codable {
@@ -65,5 +67,55 @@ enum RewardInbox {
         let count = pending()
         if count > 0 { try? "0".write(to: fileURL, atomically: true, encoding: .utf8) }
         return count
+    }
+}
+
+/// 입양 인박스: `aquarium --adopt <코드>`가 넣고, 실행 중인 앱이 물고기로 되살린다.
+enum AdoptInbox {
+    static var fileURL: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-adopt-inbox")
+    }
+
+    static func deposit(_ token: String) {
+        var lines = drainPeek()
+        lines.append(token)
+        try? lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func drainPeek() -> [String] {
+        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { return [] }
+        return text.split(separator: "\n").map(String.init)
+    }
+
+    static func drain() -> [String] {
+        let lines = drainPeek()
+        if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
+        return lines
+    }
+}
+
+/// 분양 아웃박스: `aquarium --release <이름>`이 떠나보낼 물고기 이름을 넣고, 앱이 어항에서 제거한다.
+enum ReleaseOutbox {
+    static var fileURL: URL {
+        let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
+        return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-release-outbox")
+    }
+
+    static func request(_ name: String) {
+        var lines = peek()
+        lines.append(name)
+        try? lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+    }
+
+    private static func peek() -> [String] {
+        guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { return [] }
+        return text.split(separator: "\n").map(String.init)
+    }
+
+    static func drain() -> [String] {
+        let lines = peek()
+        if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
+        return lines
     }
 }

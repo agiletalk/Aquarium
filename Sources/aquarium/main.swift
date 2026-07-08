@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.4.0"
+let appVersion = "2.5.0"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
@@ -91,6 +91,24 @@ if arguments.contains("--reward") {
 }
 if arguments.contains("--achievements") {
     Achievements.printAll()
+    exit(0)
+}
+if let i = arguments.firstIndex(of: "--release") {
+    let name = (i + 1 < arguments.count) ? arguments[i + 1] : ""
+    guard !name.isEmpty else {
+        fputs("사용법: aquarium --release <물고기 이름>\n", stderr)
+        exit(1)
+    }
+    Passport.release(name: name)
+    exit(0)
+}
+if let i = arguments.firstIndex(of: "--adopt") {
+    let code = (i + 1 < arguments.count) ? arguments[i + 1] : ""
+    guard !code.isEmpty else {
+        fputs("사용법: aquarium --adopt <분양 코드>\n", stderr)
+        exit(1)
+    }
+    Passport.adopt(code: code)
     exit(0)
 }
 if arguments.contains("--install-hook") {

@@ -60,6 +60,8 @@ struct Fish {
     var name: String = ""
     var bornAtEpoch: Double = 0 // wall-clock epoch
     var panicUntil: Double = 0  // darting away after being touched
+    var id: String = UUID().uuidString
+    var origin: [String] = []   // 거쳐온 어항들 (여권)
 
     var art: [Character] { dir > 0 ? allSpecies[species].right : allSpecies[species].left }
     var mouthX: Double { dir > 0 ? x + Double(art.count - 1) : x }
@@ -275,19 +277,7 @@ final class World {
             if let name = state.name { usedNames.insert(name) }
         }
         for state in save.fish {
-            let species = min(max(0, state.species), allSpecies.count - 1)
-            var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
-                         y: Double.random(in: Double(swimMinRow)...Double(max(swimMinRow, swimMaxRow))),
-                         dir: Bool.random() ? 1 : -1,
-                         speed: state.speed,
-                         species: species,
-                         color: state.color)
-            f.eaten = state.eaten
-            f.growAt = state.growRemaining.map { now + $0 }
-            f.name = state.name ?? nextName()
-            f.bornAtEpoch = state.bornAt ?? save.tankBornAt
-            clampToTank(&f)
-            fish.append(f)
+            fish.append(makeFish(from: state))
         }
 
         // Births that happened while the tank was away (at most 3 per absence)
@@ -334,7 +324,9 @@ final class World {
                           eaten: f.eaten,
                           growRemaining: f.growAt.map { max(0, $0 - now) },
                           name: f.name,
-                          bornAt: f.bornAtEpoch)
+                          bornAt: f.bornAtEpoch,
+                          id: f.id,
+                          origin: f.origin.isEmpty ? nil : f.origin)
             },
             visitorSeen: visitorSeen,
             focusDone: focusDone,
@@ -464,6 +456,26 @@ final class World {
         f.bornAtEpoch = Date().timeIntervalSince1970
         clampToTank(&f)
         fish.append(f)
+    }
+
+    /// FishState → Fish 복원 (restore와 입양이 공유)
+    private func makeFish(from state: FishState) -> Fish {
+        let species = min(max(0, state.species), allSpecies.count - 1)
+        var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
+                     y: Double.random(in: Double(swimMinRow)...Double(max(swimMinRow, swimMaxRow))),
+                     dir: Bool.random() ? 1 : -1,
+                     speed: state.speed,
+                     species: species,
+                     color: state.color)
+        f.eaten = state.eaten
+        f.growAt = state.growRemaining.map { now + $0 }
+        f.name = state.name ?? nextName()
+        f.bornAtEpoch = state.bornAt ?? tankBornAt
+        if let id = state.id, !id.isEmpty { f.id = id }
+        f.origin = state.origin ?? []
+        usedNames.insert(f.name)
+        clampToTank(&f)
+        return f
     }
 
     @discardableResult
@@ -643,6 +655,8 @@ final class World {
             nextInboxCheck = now + 5
             let commits = RewardInbox.consume()
             if commits > 0 { applyCommitReward(commits) }
+            ingestAdoptions()
+            processReleases()
         }
         if isNight && !wasNight { bump("nights") }
         wasNight = isNight
@@ -1028,6 +1042,30 @@ final class World {
         case .octopus:
             let tentacles = (tick / 4) % 2 == 0 ? " /|/|\\|\\ " : " \\|\\|/|/ "
             return [Array(" .-\"\"\"-. "), Array("( °   ° )"), Array(tentacles)]
+        }
+    }
+
+    /// 입양 인박스를 받아 물고기를 어항에 추가 (정원 초과 허용 — 선물은 특별하니까)
+    private func ingestAdoptions() {
+        for token in AdoptInbox.drain() {
+            guard let state = Passport.decode(token) else { continue }
+            if let id = state.id, fish.contains(where: { $0.id == id }) { continue } // 중복 붙여넣기 방지
+            let f = makeFish(from: state)
+            fish.append(f)
+            bump("adopted")
+            post(L10n.adopted(f.name, from: f.origin.last))
+            Sound.playChime()
+        }
+    }
+
+    /// 분양 아웃박스를 받아 해당 물고기를 떠나보냄
+    private func processReleases() {
+        for name in ReleaseOutbox.drain() {
+            if let idx = fish.firstIndex(where: { $0.name == name }) {
+                fish.remove(at: idx)
+                bump("released")
+                post(L10n.releaseDeparted(name))
+            }
         }
     }
 
@@ -1433,6 +1471,10 @@ final class World {
             lines.append((" " + L10n.rosterCommits(commitRewards), 114))
         }
         lines.append((" " + L10n.rosterAchievements(unlocked.count, Achievements.all.count), 226))
+        let travelers = fish.filter { !$0.origin.isEmpty }.count
+        if travelers > 0 {
+            lines.append((" " + L10n.rosterTravelers(travelers), 111))
+        }
 
         let startRow = 3
         let startCol = max(2, (cols - innerW - 2) / 2 + 1)
