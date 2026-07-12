@@ -43,6 +43,27 @@ enum L10n {
            "Twinkle", "Dash", "Wiggles", "Squirt", "Coco", "Mocha", "Jelly", "Pudding",
            "Candy", "Noodle", "Sprout", "Ripple", "Glimmer", "Breeze", "Sandy", "Ollie"]
 
+    // MARK: - Rare morphs (희귀 변종)
+
+    static func morphName(_ morph: Morph) -> String {
+        switch morph {
+        case .normal: return t("보통", "Normal")
+        case .rainbow: return t("무지개", "Rainbow")
+        case .glowing: return t("발광", "Glowing")
+        case .golden: return t("금빛", "Golden")
+        case .shadow: return t("칠흑", "Shadow")
+        }
+    }
+    static func evolved(_ name: String, _ morphName: String) -> String {
+        isKorean ? "✨ \(name)\(subjectParticle(name)) \(morphName) 물고기로 진화했어요!"
+                 : "✨ \(name) evolved into a \(morphName) fish!"
+    }
+    static func grewRare(_ name: String, _ morphName: String) -> String {
+        isKorean ? "✨ 아기 \(name)\(subjectParticle(name)) \(morphName) 물고기로 자랐어요!"
+                 : "✨ Baby \(name) grew into a \(morphName) fish!"
+    }
+    static func cardRare(_ n: Int) -> String { t("✨ 희귀 물고기 \(n)마리", "✨ \(n) rare fish") }
+
     // MARK: - Tank messages
 
     static var foodSprinkled: String { t("먹이를 뿌렸어요! 물고기들이 몰려듭니다~", "Food sprinkled! Here they come~") }

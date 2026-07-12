@@ -103,8 +103,8 @@ fish carry their whole lineage. Gifted fish are welcomed even past the tank cap.
 
 ## Achievements (`--achievements`)
 
-100 badges to collect across everything you do — births, feeding, focus
-sessions, commits, rare visitors, tank age, and more. Unlocks pop up live with
+100+ badges to collect across everything you do — births, feeding, focus
+sessions, commits, rare visitors, rare morphs, tank age, and more. Unlocks pop up live with
 a chime, and your progress shows in the tank log and on your card.
 
 ```sh
@@ -151,6 +151,7 @@ AQUARIUM_LANG=ko aquarium   # or en
 ## Things to watch for
 
 - Every fish has its own species and color — striped tropicals (`><|||°>`), a long silver beltfish (`><========°>`), tiny fry (`°>`), a pufferfish (`<*(°)*>`), an anglerfish with a lure (`<(((°>-*`), and more, in all sorts of sizes and shapes.
+- **Fish evolve.** When the tank is full, an old fish sometimes evolves in place into a rare morph — rainbow, glowing, golden, or shadow — instead of leaving. Rares also turn up now and then as babies grow. They shimmer, glow through the night, and show up colored in the log (`i`) and on your card. Gift a rare and it keeps its morph in the new tank.
 - Bubbles rise from the weeds and fish mouths, growing as they near the surface (`.` → `o` → `O`).
 - A baby fish (`><>`) is born every 15–25 minutes and grows into an adult. Feeding (and finished focus sessions) speeds this up; tank capacity scales with your terminal size, up to 40 fish. When it's full, the app says so honestly.
 - The treasure chest `[____]` pops open now and then, glittering gold and startling nearby fish.

@@ -34,6 +34,7 @@ enum Passport {
         // 손상되거나 조작된 코드 방어: 값 클램프
         fish.species = min(max(0, fish.species), allSpecies.count - 1)
         fish.eaten = min(max(0, fish.eaten), 99_999)
+        if let m = fish.morph { fish.morph = min(max(0, m), rareMorphs.count) }
         if let name = fish.name, name.count > 20 { fish.name = String(name.prefix(20)) }
         return fish
     }

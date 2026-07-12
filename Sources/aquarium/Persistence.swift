@@ -10,6 +10,7 @@ struct FishState: Codable {
     var bornAt: Double?        // wall-clock epoch
     var id: String?            // 분양용 고유 id
     var origin: [String]?      // 거쳐온 어항들 (여권)
+    var morph: Int?            // 희귀 변종 (nil/0 = normal)
 }
 
 struct SaveState: Codable {

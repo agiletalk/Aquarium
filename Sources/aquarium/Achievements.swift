@@ -116,6 +116,11 @@ enum Achievements {
     Achievement(id: "meals_100", icon: "🍽️", stat: "meals", threshold: 100, ko: "잘 먹는 어항", en: "Well-Fed Tank", koDesc: "물고기 식사 100회", enDesc: "100 fish meals"),
     Achievement(id: "meals_1000", icon: "🍽️", stat: "meals", threshold: 1000, ko: "대식가 군단", en: "Legion of Gluttons", koDesc: "물고기 식사 1000회", enDesc: "1000 fish meals"),
     Achievement(id: "meals_10000", icon: "🍽️", stat: "meals", threshold: 10000, ko: "밑 빠진 어항", en: "Bottomless Tank", koDesc: "물고기 식사 10000회", enDesc: "10000 fish meals"),
+    Achievement(id: "morphs_1", icon: "✨", stat: "morphs", threshold: 1, ko: "첫 변이", en: "First Morph", koDesc: "희귀 물고기 1마리", enDesc: "1 rare fish"),
+    Achievement(id: "morphs_5", icon: "✨", stat: "morphs", threshold: 5, ko: "희귀 애호가", en: "Rarity Fan", koDesc: "희귀 물고기 5마리", enDesc: "5 rare fish"),
+    Achievement(id: "morphs_15", icon: "✨", stat: "morphs", threshold: 15, ko: "변이 수집가", en: "Morph Collector", koDesc: "희귀 물고기 15마리", enDesc: "15 rare fish"),
+    Achievement(id: "morphs_50", icon: "✨", stat: "morphs", threshold: 50, ko: "돌연변이 마스터", en: "Mutation Master", koDesc: "희귀 물고기 50마리", enDesc: "50 rare fish"),
+    Achievement(id: "morphKinds_4", icon: "🌟", stat: "morphKinds", threshold: 4, ko: "전설 컬렉션", en: "All That Glitters", koDesc: "무지개·발광·금빛·칠흑 동시 보유", enDesc: "own all 4 morphs at once"),
     ]
 
     /// 저장 상태에서 업적 판정용 통계를 계산한다 (카운터 + 파생값 병합).
@@ -133,6 +138,10 @@ enum Achievements {
         let octopus = save.visitorSeen?["octopus"] ?? 0
         m["whale"] = whale; m["turtle"] = turtle; m["octopus"] = octopus
         m["visitors"] = whale + turtle + octopus
+        m["morphKinds"] = Set(save.fish.compactMap { $0.morph }.filter { $0 > 0 }).count
+        // 진화 누적 카운터와 현재 보유 희귀 수 중 큰 값 (입양받은 희귀도 인정)
+        let rareNow = save.fish.filter { ($0.morph ?? 0) > 0 }.count
+        m["morphs"] = max(m["morphs"] ?? 0, rareNow)
         return m
     }
 

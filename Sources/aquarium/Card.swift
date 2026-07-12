@@ -32,6 +32,10 @@ enum Card {
         if let commits = save.commitRewards, commits > 0 {
             statLines.append(L10n.cardCommits(commits))
         }
+        let rareCount = save.fish.filter { ($0.morph ?? 0) > 0 }.count
+        if rareCount > 0 {
+            statLines.append(L10n.cardRare(rareCount))
+        }
         let unlocked = Achievements.all.filter {
             Achievements.isUnlocked($0, stats: Achievements.mergedStats(from: save))
         }.count

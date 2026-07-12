@@ -41,6 +41,11 @@ let allSpecies: [Species] = [
 
 let fishPalette: [UInt8] = [196, 202, 208, 214, 220, 226, 201, 213, 199, 51, 45, 39, 118, 82, 141, 129]
 
+/// 희귀 변종 — 종(species)과 독립된 시각 오버레이 레이어
+enum Morph: Int { case normal, rainbow, glowing, golden, shadow }
+let rareMorphs: [Morph] = [.rainbow, .glowing, .golden, .shadow]
+let rainbowPalette: [UInt8] = [196, 208, 226, 46, 51, 201]
+
 /// 을/를 — final-consonant(받침) aware object particle
 func objectParticle(_ name: String) -> String {
     guard let scalar = name.unicodeScalars.last, (0xAC00...0xD7A3).contains(scalar.value) else { return "를" }
@@ -69,6 +74,7 @@ struct Fish {
     var panicUntil: Double = 0  // darting away after being touched
     var id: String = UUID().uuidString
     var origin: [String] = []   // 거쳐온 어항들 (여권)
+    var morph: Morph = .normal  // 희귀 변종
 
     var art: [Character] { dir > 0 ? allSpecies[species].right : allSpecies[species].left }
     var mouthX: Double { dir > 0 ? x + Double(art.count - 1) : x }
@@ -342,7 +348,8 @@ final class World {
                           name: f.name,
                           bornAt: f.bornAtEpoch,
                           id: f.id,
-                          origin: f.origin.isEmpty ? nil : f.origin)
+                          origin: f.origin.isEmpty ? nil : f.origin,
+                          morph: f.morph == .normal ? nil : f.morph.rawValue)
             },
             visitorSeen: visitorSeen,
             focusDone: focusDone,
@@ -491,6 +498,7 @@ final class World {
         f.bornAtEpoch = state.bornAt ?? tankBornAt
         if let id = state.id, !id.isEmpty { f.id = id }
         f.origin = state.origin ?? []
+        f.morph = Morph(rawValue: state.morph ?? 0) ?? .normal
         usedNames.insert(f.name)
         clampToTank(&f)
         return f
@@ -729,7 +737,10 @@ final class World {
                 let name = spawnBaby(near: parent)
                 post(L10n.babyBorn(name, count: fish.count))
             } else if fish.count >= maxFish {
-                if Double.random(in: 0...1) < 0.6, let idx = oldestAdultIndex() {
+                let r = Double.random(in: 0...1)
+                if r < 0.35, let idx = oldestNormalAdultIndex() {
+                    evolveFish(idx)
+                } else if r < 0.75, let idx = oldestAdultIndex() {
                     departOnJourney(idx)
                 } else {
                     post(L10n.tankFull(maxFish))
@@ -807,6 +818,11 @@ final class World {
                 f.speed = Double.random(in: allSpecies[f.species].speed)
                 f.growAt = nil
                 clampToTank(&f)
+                if f.morph == .normal, Double.random(in: 0...1) < 0.02 {
+                    f.morph = rareMorphs.randomElement()!
+                    bump("morphs")
+                    post(L10n.grewRare(f.name, L10n.morphName(f.morph)))
+                }
             }
 
             fish[i] = f
@@ -1102,6 +1118,22 @@ final class World {
             .min { fish[$0].bornAtEpoch < fish[$1].bornAtEpoch }
     }
 
+    private func oldestNormalAdultIndex() -> Int? {
+        fish.indices
+            .filter { fish[$0].growAt == nil && fish[$0].morph == .normal }
+            .min { fish[$0].bornAtEpoch < fish[$1].bornAtEpoch }
+    }
+
+    /// 가장 오래된 평범한 성체가 희귀 변종으로 진화 (잃지 않고 그 자리에서 변형)
+    private func evolveFish(_ index: Int) {
+        let morph = rareMorphs.randomElement()!
+        fish[index].morph = morph
+        bump("morphs")
+        post(L10n.evolved(fish[index].name, L10n.morphName(morph)))
+        Sound.playChime()
+        writeSave()
+    }
+
     /// 물고기가 스스로 여행을 떠남 — 자리를 비우고 나중에 엽서를 보낸다
     private func departOnJourney(_ index: Int) {
         let f = fish.remove(at: index)
@@ -1390,6 +1422,24 @@ final class World {
         }
     }
 
+    /// 물고기 문자 하나의 (색, 발광) 결정 — 희귀 변종은 오버레이로 색을 덮어씀
+    private func fishColor(_ f: Fish, ch: Character, i: Int) -> (UInt8, Bool) {
+        switch f.morph {
+        case .normal:
+            if ch == "°" { return (231, false) }
+            if allSpecies[f.species].striped { return (i % 2 == 0 ? f.color : f.color2, false) }
+            return (f.color, false)
+        case .rainbow:
+            return ch == "°" ? (231, true) : (rainbowPalette[(tick / 3 + i) % rainbowPalette.count], true)
+        case .glowing:
+            return ch == "°" ? (231, true) : ([51, 87, 123][(tick / 4) % 3], true)
+        case .golden:
+            return ch == "°" ? (231, true) : ([220, 226, 214][(tick / 2 + i) % 3], true)
+        case .shadow:
+            return ch == "°" ? (196, false) : (238, false) // 붉은 눈, 어두운 몸통 (밤엔 감광되어 은밀)
+        }
+    }
+
     private func drawFish(_ grid: inout [[Cell]]) {
         for f in fish {
             let r = Int(f.y.rounded())
@@ -1398,15 +1448,8 @@ final class World {
             for (i, ch) in f.art.enumerated() {
                 let c = startC + i
                 guard c > 0, c < cols - 1 else { continue }
-                let color: UInt8
-                if ch == "°" {
-                    color = 231
-                } else if allSpecies[f.species].striped {
-                    color = i % 2 == 0 ? f.color : f.color2
-                } else {
-                    color = f.color
-                }
-                grid[r][c] = Cell(ch: ch, color: color)
+                let (color, glow) = fishColor(f, ch: ch, i: i)
+                grid[r][c] = Cell(ch: ch, color: color, glow: glow)
             }
         }
 
@@ -1541,6 +1584,17 @@ final class World {
         "\u{1B}[\(row);\(col)H"
     }
 
+    /// 도감에서 희귀 물고기 줄 색상 (normal은 기본 회백색)
+    private func morphRosterColor(_ morph: Morph) -> UInt8 {
+        switch morph {
+        case .normal: return 252
+        case .rainbow: return 201
+        case .glowing: return 51
+        case .golden: return 220
+        case .shadow: return 240
+        }
+    }
+
     /// Drawn with absolute cursor positioning over the live tank, so
     /// double-width Hangul can't shift the grid cells around it.
     private func rosterOverlay() -> String {
@@ -1559,7 +1613,7 @@ final class World {
             let age = days <= 0 ? L10n.rosterToday : L10n.rosterDays(days)
             let line = " " + pad(f.name, to: 11) + pad(artGlyph(f, max: 9), to: 10)
                 + pad(age, to: 9) + L10n.rosterEaten(f.eaten)
-            lines.append((line, 252))
+            lines.append((line, morphRosterColor(f.morph)))
         }
         if sorted.count > shown.count {
             lines.append((" " + L10n.rosterMore(sorted.count - shown.count), 245))
