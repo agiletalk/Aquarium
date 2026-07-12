@@ -121,6 +121,7 @@ enum Achievements {
     Achievement(id: "morphs_15", icon: "✨", stat: "morphs", threshold: 15, ko: "변이 수집가", en: "Morph Collector", koDesc: "희귀 물고기 15마리", enDesc: "15 rare fish"),
     Achievement(id: "morphs_50", icon: "✨", stat: "morphs", threshold: 50, ko: "돌연변이 마스터", en: "Mutation Master", koDesc: "희귀 물고기 50마리", enDesc: "50 rare fish"),
     Achievement(id: "morphKinds_4", icon: "🌟", stat: "morphKinds", threshold: 4, ko: "전설 컬렉션", en: "All That Glitters", koDesc: "무지개·발광·금빛·칠흑 동시 보유", enDesc: "own all 4 morphs at once"),
+    Achievement(id: "personalityKinds_5", icon: "🎭", stat: "personalityKinds", threshold: 5, ko: "만인의 어항", en: "Full Spectrum", koDesc: "성격 5종 동시 보유", enDesc: "all 5 personalities at once"),
     ]
 
     /// 저장 상태에서 업적 판정용 통계를 계산한다 (카운터 + 파생값 병합).
@@ -139,6 +140,7 @@ enum Achievements {
         m["whale"] = whale; m["turtle"] = turtle; m["octopus"] = octopus
         m["visitors"] = whale + turtle + octopus
         m["morphKinds"] = Set(save.fish.compactMap { $0.morph }.filter { $0 > 0 }).count
+        m["personalityKinds"] = Set(save.fish.compactMap { $0.personality }).count
         // 진화 누적 카운터와 현재 보유 희귀 수 중 큰 값 (입양받은 희귀도 인정)
         let rareNow = save.fish.filter { ($0.morph ?? 0) > 0 }.count
         m["morphs"] = max(m["morphs"] ?? 0, rareNow)

@@ -43,6 +43,61 @@ enum L10n {
            "Twinkle", "Dash", "Wiggles", "Squirt", "Coco", "Mocha", "Jelly", "Pudding",
            "Candy", "Noodle", "Sprout", "Ripple", "Glimmer", "Breeze", "Sandy", "Ollie"]
 
+    // MARK: - Personality & mood (성격/기분)
+
+    static func personalityName(_ p: Personality) -> String {
+        switch p {
+        case .shy: return t("소심한", "Shy")
+        case .greedy: return t("먹보", "Greedy")
+        case .playful: return t("장난꾸러기", "Playful")
+        case .lazy: return t("느긋한", "Lazy")
+        case .bold: return t("대담한", "Bold")
+        }
+    }
+
+    /// 도감용 짧은 라벨 (2자 = 4폭)
+    static func personalityLabel(_ p: Personality) -> String {
+        switch p {
+        case .shy: return t("소심", "shy")
+        case .greedy: return t("먹보", "eat")
+        case .playful: return t("장난", "fun")
+        case .lazy: return t("느림", "laz")
+        case .bold: return t("대담", "bld")
+        }
+    }
+
+    /// 성격/기분을 반영한 터치 반응
+    static func touchedBy(_ name: String, personality: Personality, mood: Mood) -> String {
+        let o = objectParticle(name)
+        if isKorean {
+            switch mood {
+            case .sleepy: return "자던 \(name)\(o) 깨웠어요! 🥱"
+            case .eating: return "밥 먹던 \(name)\(o) 방해했어요!"
+            case .idle:
+                switch personality {
+                case .shy: return "소심한 \(name)\(o) 만지자 화들짝 달아났어요!"
+                case .greedy: return "먹보 \(name)\(o) 만졌어요 — 먹이인 줄 알았나 봐요!"
+                case .playful: return "장난꾸러기 \(name)\(o) 만지니 신나서 뱅글뱅글!"
+                case .lazy: return "느긋한 \(name)\(o) 만졌어요 — 별로 놀라지도 않네요."
+                case .bold: return "대담한 \(name)\(o) 만졌지만 시큰둥해요."
+                }
+            }
+        } else {
+            switch mood {
+            case .sleepy: return "You woke up \(name)! 🥱"
+            case .eating: return "You interrupted \(name)'s meal!"
+            case .idle:
+                switch personality {
+                case .shy: return "Shy \(name) darts away, startled!"
+                case .greedy: return "Greedy \(name) thought you were food!"
+                case .playful: return "Playful \(name) spins with delight!"
+                case .lazy: return "Lazy \(name) barely reacts."
+                case .bold: return "Bold \(name) shrugs it off."
+                }
+            }
+        }
+    }
+
     // MARK: - Rare morphs (희귀 변종)
 
     static func morphName(_ morph: Morph) -> String {

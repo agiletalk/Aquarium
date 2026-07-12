@@ -35,6 +35,7 @@ enum Passport {
         fish.species = min(max(0, fish.species), allSpecies.count - 1)
         fish.eaten = min(max(0, fish.eaten), 99_999)
         if let m = fish.morph { fish.morph = min(max(0, m), rareMorphs.count) }
+        if let p = fish.personality { fish.personality = min(max(0, p), Personality.allCases.count - 1) }
         if let name = fish.name, name.count > 20 { fish.name = String(name.prefix(20)) }
         return fish
     }

@@ -11,6 +11,7 @@ struct FishState: Codable {
     var id: String?            // 분양용 고유 id
     var origin: [String]?      // 거쳐온 어항들 (여권)
     var morph: Int?            // 희귀 변종 (nil/0 = normal)
+    var personality: Int?      // 영구 기질 (nil = 구 세이브 → 로드 시 랜덤 배정)
 }
 
 struct SaveState: Codable {

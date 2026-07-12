@@ -46,6 +46,12 @@ enum Morph: Int { case normal, rainbow, glowing, golden, shadow }
 let rareMorphs: [Morph] = [.rainbow, .glowing, .golden, .shadow]
 let rainbowPalette: [UInt8] = [196, 208, 226, 46, 51, 201]
 
+/// 성격 — 태어날 때 정해지는 영구 기질 (이동/반응을 다르게)
+enum Personality: Int, CaseIterable { case shy, greedy, playful, lazy, bold }
+
+/// 기분 — 현재 상황에서 파생되는 표시 전용 상태 (저장 안 함)
+enum Mood { case sleepy, eating, idle }
+
 /// 을/를 — final-consonant(받침) aware object particle
 func objectParticle(_ name: String) -> String {
     guard let scalar = name.unicodeScalars.last, (0xAC00...0xD7A3).contains(scalar.value) else { return "를" }
@@ -75,6 +81,7 @@ struct Fish {
     var id: String = UUID().uuidString
     var origin: [String] = []   // 거쳐온 어항들 (여권)
     var morph: Morph = .normal  // 희귀 변종
+    var personality: Personality = .shy // 영구 기질
 
     var art: [Character] { dir > 0 ? allSpecies[species].right : allSpecies[species].left }
     var mouthX: Double { dir > 0 ? x + Double(art.count - 1) : x }
@@ -349,7 +356,8 @@ final class World {
                           bornAt: f.bornAtEpoch,
                           id: f.id,
                           origin: f.origin.isEmpty ? nil : f.origin,
-                          morph: f.morph == .normal ? nil : f.morph.rawValue)
+                          morph: f.morph == .normal ? nil : f.morph.rawValue,
+                          personality: f.personality.rawValue)
             },
             visitorSeen: visitorSeen,
             focusDone: focusDone,
@@ -479,6 +487,7 @@ final class World {
                      color: fishPalette.randomElement()!)
         f.name = nextName()
         f.bornAtEpoch = Date().timeIntervalSince1970
+        f.personality = Personality.allCases.randomElement()!
         clampToTank(&f)
         fish.append(f)
     }
@@ -499,6 +508,7 @@ final class World {
         if let id = state.id, !id.isEmpty { f.id = id }
         f.origin = state.origin ?? []
         f.morph = Morph(rawValue: state.morph ?? 0) ?? .normal
+        f.personality = Personality(rawValue: state.personality ?? Int.random(in: 0..<Personality.allCases.count)) ?? .shy
         usedNames.insert(f.name)
         clampToTank(&f)
         return f
@@ -515,6 +525,8 @@ final class World {
                         growAt: now + Double.random(in: 30...55))
         baby.name = nextName()
         baby.bornAtEpoch = Date().timeIntervalSince1970
+        baby.personality = Double.random(in: 0...1) < 0.2
+            ? Personality.allCases.randomElement()! : parent.personality
         clampToTank(&baby)
         fish.append(baby)
         bump("born")
@@ -658,10 +670,10 @@ final class World {
             let c0 = Int(f.x.rounded())
             guard abs(r - row) <= 1, col >= c0 - 1, col <= c0 + f.art.count else { continue }
 
-            post(L10n.touched(f.name))
+            post(L10n.touchedBy(f.name, personality: f.personality, mood: mood(f)))
             bump("touch"); if isNight { bump("touchNight") }
             Sound.playTouch()
-            fish[i].panicUntil = now + 1.5
+            fish[i].panicUntil = now + traits(f.personality).panic
             fish[i].dir = Double(c0 + f.art.count / 2) >= Double(col) ? 1 : -1
             fish[i].vy = Double.random(in: -0.25...0.25)
             for _ in 0..<2 {
@@ -752,6 +764,7 @@ final class World {
     private func updateFish(_ now: Double) {
         for i in fish.indices {
             var f = fish[i]
+            let t = traits(f.personality)
 
             if now < f.panicUntil {
                 // Touched! Dart away from the finger
@@ -760,16 +773,17 @@ final class World {
                 let dx = target.x - f.mouthX
                 if abs(dx) > 1 { f.dir = dx > 0 ? 1 : -1 }
                 f.vy = max(-0.3, min(0.3, (target.y - f.y) * 0.12))
-                f.x += f.dir * f.speed * 1.8
+                f.x += f.dir * f.speed * t.chaseMult
             } else if isNight {
                 // Sleepy drift: slow, near the bottom, rarely turning
                 if Double.random(in: 0...1) < 0.003 { f.dir = -f.dir }
                 if f.y < Double(swimMaxRow - 2) { f.vy += 0.003 }
                 f.x += f.dir * f.speed * 0.25
             } else {
-                if Double.random(in: 0...1) < 0.01 { f.dir = -f.dir }
-                if Double.random(in: 0...1) < 0.05 { f.vy = Double.random(in: -0.1...0.1) }
-                f.x += f.dir * f.speed
+                if Double.random(in: 0...1) < t.turnProb { f.dir = -f.dir }
+                if Double.random(in: 0...1) < t.jitterProb { f.vy = Double.random(in: -t.jitter...t.jitter) }
+                f.vy += t.vyBias
+                f.x += f.dir * f.speed * t.moveMult
             }
 
             f.y += f.vy
@@ -829,17 +843,38 @@ final class World {
         }
     }
 
+    /// 성격별 이동/반응 계수
+    private func traits(_ p: Personality)
+        -> (preyRange: Double, chaseMult: Double, moveMult: Double,
+            turnProb: Double, jitterProb: Double, jitter: Double, vyBias: Double, panic: Double) {
+        switch p {
+        case .shy:     return (14, 1.4, 1.0,  0.02,  0.05, 0.10,  0.004, 3.0)
+        case .greedy:  return (42, 2.3, 1.0,  0.01,  0.05, 0.10,  0.0,   1.5)
+        case .playful: return (28, 1.8, 1.1,  0.035, 0.12, 0.15,  0.0,   1.2)
+        case .lazy:    return (12, 1.4, 0.6,  0.004, 0.02, 0.06,  0.005, 1.5)
+        case .bold:    return (28, 1.9, 1.15, 0.01,  0.05, 0.10, -0.004, 0.6)
+        }
+    }
+
+    /// 현재 상황에서 파생되는 기분 (저장 없음) — 터치 반응에 사용
+    private func mood(_ f: Fish) -> Mood {
+        if isNight { return .sleepy }
+        if nearestPrey(for: f) != nil { return .eating }
+        return .idle
+    }
+
     private func nearestPrey(for f: Fish) -> (x: Double, y: Double)? {
+        let range = traits(f.personality).preyRange
         var best: (x: Double, y: Double)?
         var bestScore = Double.infinity
-        for pellet in food where abs(pellet.x - f.x) < 28 {
+        for pellet in food where abs(pellet.x - f.x) < range {
             let score = pow(pellet.x - f.x, 2) + pow((pellet.y - f.y) * 2, 2)
             if score < bestScore {
                 bestScore = score
                 best = (pellet.x, pellet.y)
             }
         }
-        for s in shrimp where abs(s.x - f.x) < 28 {
+        for s in shrimp where abs(s.x - f.x) < range {
             // Live prey is preferred over sinking pellets
             let score = (pow(s.x - f.x, 2) + pow((s.y - f.y) * 2, 2)) * 0.8
             if score < bestScore {
@@ -1611,8 +1646,9 @@ final class World {
         for f in shown {
             let days = Int((nowEpoch - f.bornAtEpoch) / 86400)
             let age = days <= 0 ? L10n.rosterToday : L10n.rosterDays(days)
-            let line = " " + pad(f.name, to: 11) + pad(artGlyph(f, max: 9), to: 10)
-                + pad(age, to: 9) + L10n.rosterEaten(f.eaten)
+            let line = " " + pad(f.name, to: 9) + pad(artGlyph(f, max: 7), to: 8)
+                + pad(L10n.personalityLabel(f.personality), to: 6)
+                + pad(age, to: 7) + L10n.rosterEaten(f.eaten)
             lines.append((line, morphRosterColor(f.morph)))
         }
         if sorted.count > shown.count {
