@@ -30,6 +30,13 @@ let allSpecies: [Species] = [
     Species(right: Array("><(((°=>"), left: Array("<=°)))><"), striped: false, speed: 0.3...0.6),
     Species(right: Array("~~(((°>"), left: Array("<°)))~~"), striped: false, speed: 0.08...0.18),
     Species(right: Array(">->"), left: Array("<-<"), striped: false, speed: 0.35...0.65),
+    // 크기·모양 다양화 (v2.8.0) — 반드시 배열 끝에 append (기존 세이브 인덱스 보존)
+    Species(right: Array("><========°>"), left: Array("<°========><"), striped: false, speed: 0.12...0.3),   // 갈치 (긴 리본)
+    Species(right: Array("°>"), left: Array("<°"), striped: false, speed: 0.4...0.7),                        // 치어 (초소형)
+    Species(right: Array("<((°))>"), left: Array("<((°))>"), striped: false, speed: 0.1...0.22),             // 가오리풍 마름모
+    Species(right: Array("<(((°>-*"), left: Array("*-<°)))>"), striped: false, speed: 0.08...0.2),           // 아귀 (등불)
+    Species(right: Array("<*(°)*>"), left: Array("<*(°)*>"), striped: false, speed: 0.1...0.22),             // 복어 (가시공)
+    Species(right: Array("<°VVV>"), left: Array("<VVV°>"), striped: false, speed: 0.2...0.45),               // 큰입 (이빨)
 ]
 
 let fishPalette: [UInt8] = [196, 202, 208, 214, 220, 226, 201, 213, 199, 51, 45, 39, 118, 82, 141, 129]
@@ -1524,6 +1531,12 @@ final class World {
         s + String(repeating: " ", count: max(0, width - displayWidth(s)))
     }
 
+    /// 긴 물고기(갈치 등) 아트를 도감 컬럼 폭에 맞게 축약 — 정렬·박스 유지
+    private func artGlyph(_ f: Fish, max: Int) -> String {
+        let s = String(f.art)
+        return s.count <= max ? s : String(s.prefix(max - 1)) + "~"
+    }
+
     private func pos(_ row: Int, _ col: Int) -> String {
         "\u{1B}[\(row);\(col)H"
     }
@@ -1544,7 +1557,7 @@ final class World {
         for f in shown {
             let days = Int((nowEpoch - f.bornAtEpoch) / 86400)
             let age = days <= 0 ? L10n.rosterToday : L10n.rosterDays(days)
-            let line = " " + pad(f.name, to: 11) + pad(String(f.art), to: 10)
+            let line = " " + pad(f.name, to: 11) + pad(artGlyph(f, max: 9), to: 10)
                 + pad(age, to: 9) + L10n.rosterEaten(f.eaten)
             lines.append((line, 252))
         }

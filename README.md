@@ -150,7 +150,7 @@ AQUARIUM_LANG=ko aquarium   # or en
 
 ## Things to watch for
 
-- Every fish has its own species and color — including striped tropicals (`><|||°>`).
+- Every fish has its own species and color — striped tropicals (`><|||°>`), a long silver beltfish (`><========°>`), tiny fry (`°>`), a pufferfish (`<*(°)*>`), an anglerfish with a lure (`<(((°>-*`), and more, in all sorts of sizes and shapes.
 - Bubbles rise from the weeds and fish mouths, growing as they near the surface (`.` → `o` → `O`).
 - A baby fish (`><>`) is born every 15–25 minutes and grows into an adult. Feeding (and finished focus sessions) speeds this up; tank capacity scales with your terminal size, up to 40 fish. When it's full, the app says so honestly.
 - The treasure chest `[____]` pops open now and then, glittering gold and startling nearby fish.

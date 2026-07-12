@@ -98,7 +98,7 @@ enum Achievements {
     Achievement(id: "species_3", icon: "🌈", stat: "species", threshold: 3, ko: "다양성", en: "Variety", koDesc: "3종 동시 보유", enDesc: "3 species at once"),
     Achievement(id: "species_5", icon: "🌈", stat: "species", threshold: 5, ko: "다섯 빛깔", en: "Five Colors", koDesc: "5종 동시 보유", enDesc: "5 species at once"),
     Achievement(id: "species_8", icon: "🌈", stat: "species", threshold: 8, ko: "수족관", en: "Aquarist", koDesc: "8종 동시 보유", enDesc: "8 species at once"),
-    Achievement(id: "species_10", icon: "🌈", stat: "species", threshold: 10, ko: "도감 완성", en: "Full Species Dex", koDesc: "10종 동시 보유", enDesc: "10 species at once"),
+    Achievement(id: "species_10", icon: "🌈", stat: "species", threshold: allSpecies.count - 1, ko: "도감 완성", en: "Full Species Dex", koDesc: "\(allSpecies.count - 1)종 동시 보유", enDesc: "all \(allSpecies.count - 1) species at once"),
     Achievement(id: "chest_1", icon: "💰", stat: "chest", threshold: 1, ko: "보물 발견", en: "Treasure Spotted", koDesc: "보물상자 1회 열림", enDesc: "chest opened 1x"),
     Achievement(id: "chest_10", icon: "💰", stat: "chest", threshold: 10, ko: "보물 사냥꾼", en: "Treasure Hunter", koDesc: "보물상자 10회 열림", enDesc: "chest opened 10x"),
     Achievement(id: "chest_50", icon: "💰", stat: "chest", threshold: 50, ko: "해적왕", en: "Pirate King", koDesc: "보물상자 50회 열림", enDesc: "chest opened 50x"),
