@@ -160,6 +160,7 @@ enum L10n {
     static var turtleVisiting: String { t("거북이가 놀러 왔어요!", "A sea turtle came to visit!") }
     static var octopusAppeared: String { t("문어가 나타났어요!", "An octopus appeared!") }
     static var octopusVanished: String { t("문어가 먹물을 뿜고 사라졌어요!", "The octopus squirted ink and vanished!") }
+    static var sunfishDrifting: String { t("개복치가 둥실둥실 떠내려와요…", "A sunfish is drifting lazily by…") }
 
     static var musicOn: String { t("음악을 켰어요 (DOS 감성 칩튠)", "Music on (DOS-era chiptunes)") }
     static var musicOff: String { t("음악을 껐어요", "Music off") }
@@ -212,6 +213,7 @@ enum L10n {
         t("손님 기록   고래 \(whale) · 거북이 \(turtle) · 문어 \(octopus)",
           "Visitors   whale \(whale) · turtle \(turtle) · octopus \(octopus)")
     }
+    static func rosterSunfish(_ n: Int) -> String { t("여름 손님   개복치 \(n)", "Summer guest   sunfish \(n)") }
     static var rosterEnlarge: String { t("도감을 보려면 창을 키워주세요", "Enlarge the window to see the log") }
 
     // MARK: - CLI
@@ -268,7 +270,7 @@ enum L10n {
 
             환경변수:
               AQUARIUM_LANG=ko|en                     언어 강제 지정
-              AQUARIUM_VISITOR=whale|turtle|octopus   손님이 자주 옵니다 (이스터에그)
+              AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   손님이 자주 옵니다 (이스터에그)
             """
             : """
             aquarium — a healing ASCII aquarium in your terminal
@@ -300,7 +302,7 @@ enum L10n {
 
             Environment:
               AQUARIUM_LANG=ko|en                     force language
-              AQUARIUM_VISITOR=whale|turtle|octopus   frequent visitors (easter egg)
+              AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   frequent visitors (easter egg)
             """
     }
 
@@ -444,9 +446,9 @@ enum L10n {
     static func cardFriends(_ names: String) -> String {
         t("\(names) 그리고 친구들", "\(names) & friends")
     }
-    static func cardRecords(focus: Int, whale: Int, turtle: Int, octopus: Int) -> String {
-        t("집중 \(focus)회 · 고래 \(whale) · 거북이 \(turtle) · 문어 \(octopus)",
-          "Focus \(focus) · whale \(whale) · turtle \(turtle) · octopus \(octopus)")
+    static func cardRecords(focus: Int, whale: Int, turtle: Int, octopus: Int, sunfish: Int) -> String {
+        t("집중 \(focus)회 · 고래 \(whale) · 거북이 \(turtle) · 문어 \(octopus) · 개복치 \(sunfish)",
+          "Focus \(focus) · whale \(whale) · turtle \(turtle) · octopus \(octopus) · sunfish \(sunfish)")
     }
     static func cardSaved(_ path: String) -> String {
         t("어항 명함을 저장했어요: \(path)", "Tank card saved: \(path)")

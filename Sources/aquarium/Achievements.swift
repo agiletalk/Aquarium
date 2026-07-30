@@ -134,11 +134,13 @@ enum Achievements {
         m["species"] = Set(save.fish.map(\.species).filter { $0 > 0 }).count
         m["focus"] = save.focusDone ?? 0
         m["commits"] = save.commitRewards ?? 0
-        let whale = save.visitorSeen?["whale"] ?? 0
-        let turtle = save.visitorSeen?["turtle"] ?? 0
-        let octopus = save.visitorSeen?["octopus"] ?? 0
-        m["whale"] = whale; m["turtle"] = turtle; m["octopus"] = octopus
-        m["visitors"] = whale + turtle + octopus
+        var visitors = 0
+        for kind in VisitorKind.allCases {
+            let seen = save.visitorSeen?[kind.rawValue] ?? 0
+            m[kind.rawValue] = seen
+            visitors += seen
+        }
+        m["visitors"] = visitors
         m["morphKinds"] = Set(save.fish.compactMap { $0.morph }.filter { $0 > 0 }).count
         m["personalityKinds"] = Set(save.fish.compactMap { $0.personality }).count
         // 진화 누적 카운터와 현재 보유 희귀 수 중 큰 값 (입양받은 희귀도 인정)

@@ -28,7 +28,8 @@ enum Card {
             L10n.cardRecords(focus: save.focusDone ?? 0,
                              whale: save.visitorSeen?["whale"] ?? 0,
                              turtle: save.visitorSeen?["turtle"] ?? 0,
-                             octopus: save.visitorSeen?["octopus"] ?? 0),
+                             octopus: save.visitorSeen?["octopus"] ?? 0,
+                             sunfish: save.visitorSeen?["sunfish"] ?? 0),
         ]
         if let commits = save.commitRewards, commits > 0 {
             statLines.append(L10n.cardCommits(commits))

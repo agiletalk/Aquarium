@@ -121,7 +121,7 @@ struct Shrimp {
 }
 
 enum VisitorKind: String, CaseIterable {
-    case whale, turtle, octopus
+    case whale, turtle, octopus, sunfish
 }
 
 let whaleArtRight: [[Character]] = [
@@ -140,6 +140,23 @@ let whaleArtLeft: [[Character]] = [
     "|     o          /   ",
     " \\--.__,   .__.,'    ",
     "  '-.___`._\\_.`      ",
+].map(Array.init)
+
+// 개복치 — 여름 손님. 위아래 지느러미가 긴 원반형 몸통
+let sunfishArtRight: [[Character]] = [
+    "   /\\  ",
+    "  /  \\ ",
+    " (  °_>",
+    "  \\  / ",
+    "   \\/  ",
+].map(Array.init)
+
+let sunfishArtLeft: [[Character]] = [
+    "  /\\   ",
+    " /  \\  ",
+    "<_°  ) ",
+    " \\  /  ",
+    "  \\/   ",
 ].map(Array.init)
 
 struct Visitor {
@@ -1111,9 +1128,17 @@ final class World {
         guard var v = visitor else { return }
 
         switch v.kind {
-        case .whale, .turtle:
-            v.x += v.dir * (v.kind == .whale ? 0.28 : 0.18)
+        case .whale, .turtle, .sunfish:
+            let speed: Double
+            switch v.kind {
+            case .whale: speed = 0.28
+            case .turtle: speed = 0.18
+            case .sunfish: speed = 0.13 // 개복치는 물살에 떠밀리듯 느긋하게
+            case .octopus: speed = 0
+            }
+            v.x += v.dir * speed
             if v.kind == .turtle { v.y += sin(now * 1.2) * 0.03 }
+            if v.kind == .sunfish { v.y += sin(now * 0.5) * 0.02 } // 흐느적 상하 표류
             let width = Double(visitorArt(v).map(\.count).max() ?? 20)
             if (v.dir > 0 && v.x > Double(cols)) || (v.dir < 0 && v.x < -width) {
                 visitor = nil
@@ -1135,7 +1160,9 @@ final class World {
     }
 
     private func spawnVisitor(_ now: Double) {
-        var kind = VisitorKind(rawValue: debugVisitor ?? "") ?? VisitorKind.allCases.randomElement()!
+        // 개복치는 여름에만 합류 (AQUARIUM_VISITOR는 계절 무시 — 테스트용 탈출구)
+        let pool = VisitorKind.allCases.filter { $0 != .sunfish || isSummer }
+        var kind = VisitorKind(rawValue: debugVisitor ?? "") ?? pool.randomElement()!
         if kind == .whale, swimMaxRow - swimMinRow < 8 { kind = .turtle }
 
         let dir: Double = Bool.random() ? 1 : -1
@@ -1158,6 +1185,12 @@ final class World {
                               y: Double.random(in: Double(swimMinRow + 2)...Double(max(swimMinRow + 2, swimMaxRow - 5))),
                               dir: 1, departAt: now + 8)
             post(L10n.octopusAppeared)
+        case .sunfish:
+            visitor = Visitor(kind: kind,
+                              x: dir > 0 ? -8 : Double(cols + 2),
+                              y: Double.random(in: Double(swimMinRow + 1)...Double(max(swimMinRow + 1, swimMaxRow - 5))),
+                              dir: dir, departAt: nil)
+            post(L10n.sunfishDrifting)
         }
         visitorSeen[kind.rawValue, default: 0] += 1
     }
@@ -1179,6 +1212,8 @@ final class World {
         case .octopus:
             let tentacles = (tick / 4) % 2 == 0 ? " /|/|\\|\\ " : " \\|\\|/|/ "
             return [Array(" .-\"\"\"-. "), Array("( °   ° )"), Array(tentacles)]
+        case .sunfish:
+            return v.dir > 0 ? sunfishArtRight : sunfishArtLeft
         }
     }
 
@@ -1563,6 +1598,7 @@ final class World {
         case .whale: baseColor = 24    // distant deep blue
         case .turtle: baseColor = 71
         case .octopus: baseColor = 168
+        case .sunfish: baseColor = 145 // 은빛 회색
         }
         let startR = Int(v.y.rounded())
         let startC = Int(v.x.rounded())
@@ -1714,6 +1750,9 @@ final class World {
                                              turtle: visitorSeen["turtle", default: 0],
                                              octopus: visitorSeen["octopus", default: 0])
         lines.append((seen, 117))
+        if visitorSeen["sunfish", default: 0] > 0 {
+            lines.append((" " + L10n.rosterSunfish(visitorSeen["sunfish", default: 0]), 117))
+        }
         if focusDone > 0 {
             lines.append((" " + L10n.rosterFocus(focusDone), 203))
         }
