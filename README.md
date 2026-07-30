@@ -42,6 +42,7 @@ swift run -c release
 | `i` | Tank log — every fish's name, age, meals, and visitor sightings |
 | `s` | Support — a Ko-fi link (press `o` to open in browser) |
 | `n` | Lights — cycle auto → night → day |
+| `t` | Season — cycle auto → summer → off |
 | `m` | Music on/off — a DOS-era chiptune playlist for lo-fi coding |
 | Mouse click | Pet a fish — it bloops and darts away |
 | `q` / `Ctrl-C` | Quit (tank auto-saves) |
@@ -57,6 +58,23 @@ aquarium --focus 25   # minutes (default 25)
 A countdown appears in the status bar. When the session completes, a feast rains
 down for the fish, a chime plays, and the session is recorded in your tank log —
 your focus literally grows the tank.
+
+## Summer season (`--season`)
+
+From June through August (by your system clock), the tank turns summery on its
+own: a sun and heat shimmer ripple along the water's surface during the day,
+a sunfish occasionally drifts by, and feeding sometimes drops a slice of
+watermelon instead of a pellet.
+
+```sh
+aquarium --season summer   # force it on, any time of year
+aquarium --season none     # turn it off
+aquarium --season auto     # back to the calendar (the default)
+```
+
+`--season` sticks — whatever you pick is saved and used again next launch,
+until you change it. Season is independent from lights: a summer night still
+shows the stars and moon, not the sun.
 
 ## Your commits feed the fish (`--install-hook`)
 
@@ -160,10 +178,10 @@ AQUARIUM_LANG=ko aquarium   # or en
 - **Live prey.** Brine shrimp released with `g` wiggle and actively flee from fish; fish prefer them over sinking pellets. Eating one is extra nutritious. Survivors hide in the sand after 50 seconds.
 - **Every fish has a name.** Bubbles, Splash, Finn… assigned at birth. Check ages and meal counts in the `i` log. Click one and it runs away as you call its name.
 - **Every fish has a personality.** Assigned at birth — shy, greedy, playful, lazy, or bold — it shapes how they swim: the greedy one races to food from across the tank, the lazy one drifts near the bottom, the bold one cruises the surface, the shy one bolts when touched. Shown in the log (`i`), and touching a fish reacts to its personality and current mood (wake a sleeper, interrupt a meal…). Babies tend to inherit a parent's temperament.
-- **Rare visitors.** A whale passes in the distance, a sea turtle drops by, an octopus squirts ink and vanishes. Sightings are recorded in the log. (Impatient? Run `AQUARIUM_VISITOR=whale aquarium` for frequent visits.)
+- **Rare visitors.** A whale passes in the distance, a sea turtle drops by, an octopus squirts ink and vanishes, and in summer a sunfish drifts lazily through. Sightings are recorded in the log. (Impatient? Run `AQUARIUM_VISITOR=whale` or `AQUARIUM_VISITOR=sunfish aquarium` for frequent visits.)
 - **A cleanup crew.** The snail `@` slowly crawls to sunken food and eats it; the crab `v(;,;)v` scuttles sideways and occasionally waves its claws. They work the night shift, too.
 - **Your tank persists.** State is saved to `~/.aquarium.json` on quit and restored on the next run — including fish born while you were away.
-- **At night** the tank dims, stars and a moon appear on the rim, fish doze near the bottom (`z`), and the jellyfish glows teal. Night kicks in automatically from 7pm to 7am or when your terminal/system uses a dark theme — or toggle with `n`.
+- **At night** the tank dims, stars and a moon appear on the rim, fish doze near the bottom (`z`), and the jellyfish glows teal. Night kicks in automatically from 7pm to 7am or when your terminal/system uses a dark theme — or toggle with `n`. **In summer**, daytime instead gets a sun and heat shimmer along the rim — the two are independent, so summer nights still show stars.
 
 ## Support
 

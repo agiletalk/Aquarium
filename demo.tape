@@ -21,6 +21,10 @@ Sleep 5s
 Type "g"
 Sleep 5s
 
+# 여름 테마: 자동 → 여름 (수면에 태양과 아지랑이)
+Type "t"
+Sleep 5s
+
 # 도감 패널
 Type "i"
 Sleep 4s
