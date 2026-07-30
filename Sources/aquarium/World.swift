@@ -99,11 +99,16 @@ struct Bubble {
     var speed: Double
 }
 
+enum FoodKind {
+    case pellet, watermelon
+}
+
 struct Food {
     var x: Double
     var y: Double
     var vy: Double
     var restingSince: Double?
+    var kind: FoodKind = .pellet // 여름 수박 변형
 }
 
 struct Weed {
@@ -598,8 +603,22 @@ final class World {
     func feed() {
         guard food.count < 60 else { return }
         sprinkleFood(Int.random(in: 4...7))
+        // 여름 한정: 손으로 준 먹이에만 수박 한 조각이 섞인다
+        // (커밋 보상·집중 완료 대잔치는 sprinkleFood를 직접 부르므로 해당 없음)
+        // 동시에 한 조각만 — 3칸 글리프가 서로 겹쳐 깨지는 걸 구조적으로 차단
+        let melon = isSummer && cols > 10
+            && !food.contains(where: { $0.kind == .watermelon })
+            && Double.random(in: 0...1) < 0.25
+        if melon {
+            food.append(Food(x: Double.random(in: 3...Double(cols - 4)),
+                             y: Double(surfaceRow + 1),
+                             vy: Double.random(in: 0.08...0.16), // 수박은 천천히 가라앉는다
+                             restingSince: nil,
+                             kind: .watermelon))
+            bump("fed")
+        }
         bump("feedActions")
-        post(L10n.foodSprinkled)
+        post(melon ? L10n.watermelonDropped : L10n.foodSprinkled)
     }
 
     private func sprinkleFood(_ count: Int) {
@@ -851,10 +870,12 @@ final class World {
 
             for fi in food.indices.reversed() {
                 if abs(food[fi].x - f.mouthX) < 2.0, abs(food[fi].y - f.y) < 1.3 {
+                    let melon = food[fi].kind == .watermelon
                     food.remove(at: fi)
                     f.eaten += 1
                     bump("meals")
-                    nextBreed -= 30 // well-fed tanks grow faster
+                    if melon { bump("watermelon") }
+                    nextBreed -= melon ? 45 : 30 // 수박은 여름 보양식
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))
@@ -1521,10 +1542,20 @@ final class World {
     }
 
     private func drawFood(_ grid: inout [[Cell]]) {
-        for pellet in food {
+        for pellet in food where pellet.kind == .pellet {
             let r = Int(pellet.y.rounded()), c = Int(pellet.x.rounded())
             guard r >= swimMinRow, r <= sandRow, c > 0, c < cols - 1 else { continue }
             grid[r][c] = Cell(ch: "*", color: 214)
+        }
+        // 수박은 3칸이라 펠릿보다 뒤에 그린다 (펠릿이 껍질을 파먹지 않게)
+        for melon in food where melon.kind == .watermelon {
+            let r = Int(melon.y.rounded()), c = Int(melon.x.rounded())
+            guard r >= swimMinRow, r <= sandRow else { continue }
+            for (dc, ch) in [(-1, Character("(")), (0, "%"), (1, ")")] {
+                let x = c + dc
+                guard x > 0, x < cols - 1 else { continue }
+                grid[r][x] = Cell(ch: ch, color: dc == 0 ? 198 : 34) // 분홍 속 + 초록 껍질
+            }
         }
     }
 

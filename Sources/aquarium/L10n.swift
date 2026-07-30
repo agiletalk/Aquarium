@@ -122,6 +122,7 @@ enum L10n {
     // MARK: - Tank messages
 
     static var foodSprinkled: String { t("먹이를 뿌렸어요! 물고기들이 몰려듭니다~", "Food sprinkled! Here they come~") }
+    static var watermelonDropped: String { t("수박 한 조각을 띄웠어요! 🍉", "Dropped a slice of watermelon! 🍉") }
     static var shrimpReleased: String { t("브라인슈림프를 풀었어요! 사냥 개시!", "Brine shrimp released — the hunt is on!") }
 
     static func babyBorn(_ name: String, count: Int) -> String {
