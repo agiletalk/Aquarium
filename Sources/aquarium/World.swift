@@ -1383,6 +1383,24 @@ final class World {
             if moonCol < cols - 1 {
                 grid[0][moonCol] = Cell(ch: "O", color: 223, glow: true)
             }
+        } else if isSummer {
+            // 여름 낮: 수면 위로 아지랑이가 흐르고 오른쪽 어깨에 태양이 뜬다
+            // (여름 밤이면 위쪽 별/달 분기가 그려진다 — 계절과 조명은 직교)
+            for c in 1..<(cols - 1) {
+                if cols > title.count + 4, c >= titleStart - 1, c <= titleStart + title.count { continue }
+                let heat = sin(Double(c) * 0.7 - now * 3)
+                guard heat > 0.55 else { continue }
+                grid[0][c] = Cell(ch: heat > 0.85 ? "~" : "-",
+                                  color: heat > 0.85 ? 229 : 180, glow: true)
+            }
+
+            let sun: [Character] = ["\\", "-", "O", "-", "/"]
+            let sunStart = cols - 1 - sun.count // 오른쪽 테두리 바로 안쪽 (밤의 달과 반대 어깨)
+            if sunStart > titleStart + title.count {
+                for (i, ch) in sun.enumerated() {
+                    grid[0][sunStart + i] = Cell(ch: ch, color: ch == "O" ? 226 : 220, glow: true)
+                }
+            }
         }
 
         if cols > title.count + 4 {
