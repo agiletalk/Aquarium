@@ -149,6 +149,13 @@ enum L10n {
     static var lightingNight: String { t("조명: 밤", "Lights: night") }
     static var lightingDay: String { t("조명: 낮", "Lights: day") }
 
+    static func seasonAuto(isSummer: Bool) -> String {
+        t("계절: 자동 (지금은 \(isSummer ? "여름" : "평소"))",
+          "Season: auto (currently \(isSummer ? "summer" : "off-season"))")
+    }
+    static var seasonSummer: String { t("계절: 여름", "Season: summer") }
+    static var seasonOff: String { t("계절: 끄기", "Season: off") }
+
     static var whalePassing: String { t("저 멀리 고래가 지나가요…", "A whale is passing by in the distance…") }
     static var turtleVisiting: String { t("거북이가 놀러 왔어요!", "A sea turtle came to visit!") }
     static var octopusAppeared: String { t("문어가 나타났어요!", "An octopus appeared!") }
@@ -189,8 +196,8 @@ enum L10n {
         return t(night ? "밤" : "낮", night ? "night" : "day")
     }
     static var helpLine: String {
-        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [b] 편지함  [s] 후원  [n] 조명  [m] 음악  [q] 종료",
-          "[f] feed  [g] live food  [p] focus  [i] log  [b] mail  [s] support  [n] lights  [m] music  [q] quit")
+        t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [b] 편지함  [s] 후원  [n] 조명  [t] 계절  [m] 음악  [q] 종료",
+          "[f] feed  [g] live food  [p] focus  [i] log  [b] mail  [s] support  [n] lights  [t] season  [m] music  [q] quit")
     }
     static var enlargeTerminal: String { t("터미널 창을 조금만 키워주세요! (최소 34x12)", "Please enlarge the terminal! (min 34x12)") }
 
@@ -225,6 +232,10 @@ enum L10n {
     static func unknownOption(_ option: String) -> String {
         t("알 수 없는 옵션: \(option)\n--help 를 참고하세요.", "Unknown option: \(option)\nSee --help.")
     }
+    static func invalidSeason(_ value: String) -> String {
+        t("--season 값이 잘못됐어요: \(value.isEmpty ? "(값 없음)" : value)\n사용 가능: auto | none | summer",
+          "Invalid --season value: \(value.isEmpty ? "(missing)" : value)\nAvailable: auto | none | summer")
+    }
     static var helpText: String {
         isKorean
             ? """
@@ -233,6 +244,7 @@ enum L10n {
             사용법:
               aquarium              어항 실행
               aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
+              aquarium --season <값>  계절 테마 강제 (auto|none|summer)
               aquarium --card       어항 명함 PNG 생성 (SNS 공유용)
               aquarium --install-hook  현재 git 레포에 커밋 보상 훅 설치
               aquarium --reward     커밋 보상 적립 (git hook이 호출)
@@ -248,6 +260,7 @@ enum L10n {
               f  먹이 주기          g  생먹이(브라인슈림프)
               p  집중 시작/중단     i  도감
               n  조명 (자동 → 밤 → 낮)
+              t  계절 (자동 → 여름 → 끄기)
               m  음악 (칩튠 플레이리스트 켜기/끄기)
               q  종료 (자동 저장)   마우스 클릭: 물고기 만지기
 
@@ -263,6 +276,7 @@ enum L10n {
             Usage:
               aquarium               run the tank
               aquarium --focus [min] start in pomodoro focus mode (default 25)
+              aquarium --season <s>   force the season theme (auto|none|summer)
               aquarium --card        render a shareable PNG tank card
               aquarium --install-hook  install the commit-reward hook in this repo
               aquarium --reward      bank a commit reward (called by the git hook)
@@ -278,6 +292,7 @@ enum L10n {
               f  sprinkle food      g  live food (brine shrimp)
               p  start/stop focus   i  tank log
               n  lights (auto → night → day)
+              t  season (auto → summer → off)
               m  music (chiptune playlist on/off)
               q  quit (auto-saves)  mouse click: pet a fish
 

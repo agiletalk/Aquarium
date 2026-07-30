@@ -29,6 +29,7 @@ struct SaveState: Codable {
     var unlockedAchievements: [String]? // 획득한 업적 id
     var travelers: [Traveler]?      // 여행 떠난 물고기들 (엽서를 보냄)
     var mailbox: [Postcard]?        // 받은 엽서
+    var season: String?             // 계절 테마 (nil = 구 세이브 → auto)
 }
 
 struct Traveler: Codable {

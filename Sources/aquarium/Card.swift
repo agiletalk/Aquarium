@@ -13,6 +13,7 @@ enum Card {
         let world = World(cols: 64, rows: 20, terminalDark: false,
                           restoring: save, ephemeral: true)
         world.setLighting(.day)
+        world.setSeason(.off)
         for _ in 0..<50 { world.update() } // 물고기·공기방울이 자연스럽게 퍼지도록
         let grid = world.composeGrid()
 

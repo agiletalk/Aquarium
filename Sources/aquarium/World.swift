@@ -10,6 +10,11 @@ enum Lighting: String {
     case auto, day, night
 }
 
+/// 계절 테마 — 조명(Lighting)과 독립된 축. 세이브/CLI 표기는 "none".
+enum Season: String {
+    case auto, off = "none", summer
+}
+
 struct Species {
     let right: [Character]
     let left: [Character]
@@ -231,7 +236,18 @@ final class World {
     private var tankBornAt: Double = 0 // wall-clock epoch
     private let ephemeral: Bool        // card rendering: never write the save file
 
+    private(set) var season: Season = .auto
+
     var isNight: Bool { lighting == .night || (lighting == .auto && envNight) }
+
+    /// 여름 판정 — auto면 달력 기준 6–8월. isNight와 직교한다(여름 밤엔 별/달이 그대로).
+    var isSummer: Bool {
+        switch season {
+        case .summer: return true
+        case .off: return false
+        case .auto: return (6...8).contains(Calendar.current.component(.month, from: Date()))
+        }
+    }
 
     private var now: Double { ProcessInfo.processInfo.systemUptime }
 
@@ -293,6 +309,7 @@ final class World {
         let now = self.now
         tankBornAt = save.tankBornAt
         lighting = Lighting(rawValue: save.lighting) ?? .auto
+        season = Season(rawValue: save.season ?? "") ?? .auto
         visitorSeen = save.visitorSeen ?? [:]
         focusDone = save.focusDone ?? 0
         commitRewards = save.commitRewards ?? 0
@@ -366,7 +383,8 @@ final class World {
             stats: stats,
             unlockedAchievements: Array(unlocked),
             travelers: travelers.isEmpty ? nil : travelers,
-            mailbox: mailbox.isEmpty ? nil : mailbox)
+            mailbox: mailbox.isEmpty ? nil : mailbox,
+            season: season.rawValue)
     }
 
     func writeSave() {
@@ -413,6 +431,25 @@ final class World {
         guard process.terminationStatus == 0 else { return false }
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         return output.contains("Dark")
+    }
+
+    // MARK: - Season (계절)
+
+    func setSeason(_ mode: Season) {
+        season = mode
+    }
+
+    func toggleSeason() {
+        switch season {
+        case .auto: season = .summer
+        case .summer: season = .off
+        case .off: season = .auto
+        }
+        switch season {
+        case .auto: post(L10n.seasonAuto(isSummer: isSummer))
+        case .summer: post(L10n.seasonSummer)
+        case .off: post(L10n.seasonOff)
+        }
     }
 
     // MARK: - Spawning

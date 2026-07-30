@@ -90,6 +90,18 @@ if let index = arguments.firstIndex(of: "--focus") {
     }
 }
 
+var seasonOverride: Season?
+if let index = arguments.firstIndex(of: "--season") {
+    arguments.remove(at: index)
+    let value = index < arguments.count ? arguments[index] : ""
+    guard let parsed = Season(rawValue: value) else {
+        fputs(L10n.invalidSeason(value) + "\n", stderr)
+        exit(1)
+    }
+    seasonOverride = parsed
+    arguments.remove(at: index)
+}
+
 if arguments.contains("--status") {
     printStatus()
     exit(0)
@@ -162,6 +174,9 @@ let world = World(cols: initialSize.cols, rows: initialSize.rows,
 if let focusMinutes {
     world.startFocus(minutes: focusMinutes)
 }
+if let seasonOverride {
+    world.setSeason(seasonOverride)
+}
 
 func shutdown() -> Never {
     world.writeSave()
@@ -192,6 +207,8 @@ mainLoop: while true {
                 world.feedLive()
             case "n", "N":
                 world.toggleLighting()
+            case "t", "T":
+                world.toggleSeason()
             case "i", "I":
                 world.toggleRoster()
             case "m", "M":
