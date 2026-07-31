@@ -260,6 +260,15 @@ final class World {
 
     private(set) var season: Season = .auto
 
+    /// 라운지 전시 모드 — 무인 상설 전시용. Lighting·Season과 직교하며 세이브에 남지 않는다
+    /// (전시 맥의 실행 옵션이지 어항의 속성이 아니다).
+    private(set) var lounge = false
+
+    /// 라운지 타이머(번식 2~3일, 진화 6~12시간)는 눈으로 검증할 방법이 없어 압축 배율을 둔다.
+    /// AQUARIUM_VISITOR와 같은 성격의 테스트용 탈출구 — --help·README에는 싣지 않는다.
+    private let loungeFast = ProcessInfo.processInfo.environment["AQUARIUM_LOUNGE_FAST"] != nil
+    private var loungeScale: Double { loungeFast ? 1.0 / 1200 : 1 }
+
     var isNight: Bool { lighting == .night || (lighting == .auto && envNight) }
 
     /// 여름 판정 — auto면 달력 기준 6–8월. isNight와 직교한다(여름 밤엔 별/달이 그대로).
@@ -284,11 +293,12 @@ final class World {
     private var maxFish: Int { max(8, min(40, cols * rows / 80)) }
 
     init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil,
-         ephemeral: Bool = false) {
+         ephemeral: Bool = false, lounge: Bool = false) {
         self.cols = cols
         self.rows = rows
         self.terminalDark = terminalDark
         self.ephemeral = ephemeral
+        self.lounge = lounge
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: 900...1500)
         tankBornAt = Date().timeIntervalSince1970

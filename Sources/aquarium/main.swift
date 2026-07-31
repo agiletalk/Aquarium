@@ -102,6 +102,14 @@ if let index = arguments.firstIndex(of: "--season") {
     arguments.remove(at: index)
 }
 
+// 값을 안 받지만 --status 류와 달리 메인 루프로 진행하므로, 미지 옵션 가드에
+// 걸리지 않게 arguments에서 반드시 제거한다.
+var loungeMode = false
+if let index = arguments.firstIndex(of: "--lounge") {
+    arguments.remove(at: index)
+    loungeMode = true
+}
+
 if arguments.contains("--status") {
     printStatus()
     exit(0)
@@ -170,7 +178,8 @@ let terminalDark = term.backgroundIsDark()
 
 let initialSize = term.size
 let world = World(cols: initialSize.cols, rows: initialSize.rows,
-                  terminalDark: terminalDark, restoring: SaveStore.load())
+                  terminalDark: terminalDark, restoring: SaveStore.load(),
+                  lounge: loungeMode)
 if let focusMinutes {
     world.startFocus(minutes: focusMinutes)
 }
@@ -200,6 +209,11 @@ mainLoop: while true {
     for event in term.readEvents() {
         switch event {
         case .key(let key):
+            // 라운지는 아무도 못 만지는 전시용이라 순간적 인터랙션(먹이·클릭)만 남기고
+            // 상태를 지속적으로 바꾸는 키는 전부 무시한다. q는 되살릴 사람이 없어서,
+            // o는 전체화면 위로 브라우저 창을 띄워서, 패널·음악은 켜둔 채 방치되면
+            // 전시가 계속 가려지거나 종일 소리가 나서 막는다. 종료는 Ctrl-C(SIGINT).
+            if world.lounge, !"fFgG".contains(key) { break }
             switch key {
             case "f", "F":
                 world.feed()
