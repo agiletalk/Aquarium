@@ -1,6 +1,6 @@
 import Foundation
 
-let appVersion = "2.12.0"
+let appVersion = "2.12.1"
 
 func printStatus() {
     guard let save = SaveStore.load(), !save.fish.isEmpty else {
