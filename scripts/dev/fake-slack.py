@@ -84,7 +84,22 @@ class Handler(BaseHTTPRequestHandler):
     scenario = "basic"
     fake_429 = ""
     record_path = None
+    messages_file = None
     reacted = set()
+
+    def _live_messages(self):
+        """--messages-file 모드: 파일을 매 요청마다 다시 읽는다.
+
+        데모용이다. 파일에 한 줄 덧붙이면 그게 곧 '채널에 올린 메시지'가 되고,
+        다음 폴링에서 잡힌다. 행 번호로 ts를 만들어 append가 항상 최신이 되게 한다.
+        """
+        try:
+            with open(self.messages_file) as f:
+                lines = [ln.rstrip("\n") for ln in f]
+        except OSError:
+            return []
+        return [msg(f"{1700000000 + i + 1}.000100", ln)
+                for i, ln in enumerate(lines) if ln.strip()]
 
     def log_message(self, *a):  # 기본 stderr 로그 억제
         pass
@@ -127,6 +142,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.fake_429 in ("history", "both"):
             self._429("history")
+            return
+
+        if self.messages_file:
+            self._send(200, json.dumps(
+                {"ok": True, "messages": self._live_messages(), "has_more": False},
+                ensure_ascii=False))
             return
 
         data = SCENARIOS.get(self.scenario)
@@ -174,9 +195,14 @@ def main():
     p.add_argument("--scenario", default="basic")
     p.add_argument("--record", default=None)
     p.add_argument("--fake-429", default=os.environ.get("FAKE_429", ""))
+    p.add_argument("--messages-file", default=None,
+                   help="이 파일의 각 줄을 채널 메시지로 서빙한다(매 요청마다 재읽기). "
+                        "데모용 — 줄을 덧붙이면 다음 폴링에서 잡힌다.")
     a = p.parse_args()
 
-    if a.scenario not in SCENARIOS and a.scenario != "garbage":
+    if a.messages_file:
+        Handler.messages_file = a.messages_file
+    elif a.scenario not in SCENARIOS and a.scenario != "garbage":
         print(f"알 수 없는 시나리오: {a.scenario}", file=sys.stderr)
         print("사용 가능: " + ", ".join(sorted(SCENARIOS) + ["garbage"]), file=sys.stderr)
         sys.exit(2)
