@@ -219,6 +219,7 @@ final class World {
     private var inkCloud: (x: Double, y: Double, bornAt: Double)?
     private var nextVisitorAt: Double = 0
     private var nextAutoFeedAt: Double = 0
+    private var nextEvolveAt: Double = 0
     private var visitorSeen: [String: Int] = [:]
     private let debugVisitor = ProcessInfo.processInfo.environment["AQUARIUM_VISITOR"]
 
@@ -291,7 +292,16 @@ final class World {
     private var swimMinRow: Int { 2 }
     private var swimMaxRow: Int { sandRow - 1 }
 
-    private var maxFish: Int { max(8, min(40, cols * rows / 80)) }
+    /// 밀도 공식(cols*rows/80)은 그대로 두고 천장만 올린다 — 화면이 커져도 물고기
+    /// 점유율은 일정하고, 대형 전시 디스플레이에서만 40마리 상한이 풀린다.
+    private var maxFish: Int { max(8, min(lounge ? 120 : 40, cols * rows / 80)) }
+
+    /// 라운지 어항은 몇 주~몇 달에 걸쳐 자라야 전시 서사가 된다. 15~25분 → 2~3일.
+    private var breedInterval: ClosedRange<Double> {
+        let base: ClosedRange<Double> = lounge ? 172_800...259_200 : 900...1500
+        guard lounge else { return base }
+        return (base.lowerBound * loungeScale)...(base.upperBound * loungeScale)
+    }
 
     init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil,
          ephemeral: Bool = false, lounge: Bool = false) {
@@ -301,12 +311,15 @@ final class World {
         self.ephemeral = ephemeral
         self.lounge = lounge
         startTime = ProcessInfo.processInfo.systemUptime
-        nextBreed = startTime + Double.random(in: 900...1500)
+        nextBreed = startTime + Double.random(in: breedInterval)
         tankBornAt = Date().timeIntervalSince1970
         nextVisitorAt = startTime + (debugVisitor != nil
             ? 4
             : lounge ? Double.random(in: 20...45) : Double.random(in: 120...300))
-        if lounge { nextAutoFeedAt = startTime + Double.random(in: 20...40) * loungeScale }
+        if lounge {
+            nextAutoFeedAt = startTime + Double.random(in: 20...40) * loungeScale
+            nextEvolveAt = startTime + Double.random(in: 21_600...43_200) * loungeScale
+        }
         plantWeeds()
         placeChest()
         spawnJellyfish()
@@ -314,7 +327,9 @@ final class World {
         if let save, !save.fish.isEmpty {
             restore(save)
         } else {
-            for _ in 0..<5 { spawnAdult() }
+            // 라운지는 정원의 20%로 문을 연다 — 첫날부터 어느 정도 풍성하되
+            // 남은 80%가 몇 달치 성장 여지로 남는다. 복원된 어항은 건드리지 않는다.
+            for _ in 0..<(lounge ? max(5, maxFish / 5) : 5) { spawnAdult() }
         }
         refreshEnvNight()
         wasNight = isNight
@@ -369,12 +384,22 @@ final class World {
         var bornAges: [Double] = []
         while away >= remaining {
             away -= remaining
-            remaining = Double.random(in: 900...1500)
+            remaining = Double.random(in: breedInterval)
             if bornAges.count < maxOfflineBirths, fish.count + bornAges.count < maxFish {
                 bornAges.append(away) // seconds this fish has already lived
             }
         }
-        nextBreed = now + (remaining - away)
+        // breedRemaining은 세이브에 남으므로 모드를 바꿔 열면 어긋난다. 라운지 세이브를
+        // 일반 모드로 열면 3일간 번식이 멈추고(오너가 --lounge를 테스트하고 끄면 바로
+        // 겪는다), 일반 세이브를 라운지로 열면 첫 아기가 25분 만에 나온다. 양쪽 다
+        // 현재 모드의 상한으로 맞춘다.
+        var next = remaining - away
+        if lounge {
+            next = next <= 1500 ? Double.random(in: breedInterval) : min(next, breedInterval.upperBound)
+        } else {
+            next = min(next, 1500)
+        }
+        nextBreed = now + max(0, next)
 
         for age in bornAges {
             if age >= 45 {
@@ -667,7 +692,7 @@ final class World {
     private func applyCommitReward(_ commits: Int) {
         commitRewards += commits
         sprinkleFood(min(12, commits * 5))
-        nextBreed -= Double(commits) * 30
+        if !lounge { nextBreed -= Double(commits) * 30 } // 먹이만, 성장 가속은 라운지 제외
         post(L10n.rewardArrived(commits))
         writeSave()
     }
@@ -838,12 +863,17 @@ final class World {
         updateVisitor(now)
 
         // The tank slowly fills up on its own; feeding just speeds it along.
+        // (라운지는 예외 — 먹이가 nextBreed를 못 깎는다. updateFish 참고.)
         if now >= nextBreed {
-            nextBreed = now + Double.random(in: 900...1500)
+            nextBreed = now + Double.random(in: breedInterval)
             if fish.count < maxFish, let parent = fish.randomElement() {
                 let name = spawnBaby(near: parent)
                 post(L10n.babyBorn(name, count: fish.count))
-            } else if fish.count >= maxFish {
+            } else if !lounge, fish.count >= maxFish {
+                // 라운지에서 이 분기를 건너뛰는 이유: 진화는 아래 nextEvolveAt이
+                // 담당하고, departOnJourney는 막아야 한다 — 동료가 분양한 물고기가
+                // 어느 날 조용히 사라지면 "모두의 수조"가 성립하지 않는다.
+                // tankFull 메시지도 무인 전시에는 알릴 사람이 없다.
                 let r = Double.random(in: 0...1)
                 if r < 0.35, let idx = oldestNormalAdultIndex() {
                     evolveFish(idx)
@@ -853,6 +883,14 @@ final class World {
                     post(L10n.tankFull(maxFish))
                 }
             }
+        }
+
+        // 진화를 번식 타이머에서 분리한다. 원래 evolveFish는 "어항이 가득 찼을 때"만
+        // 발동하는데, 라운지는 정원 120에 번식이 2~3일이라 몇 달간 차지 않는다 —
+        // 그대로 두면 희귀 모프가 전시 내내 한 번도 안 나온다.
+        if lounge, now >= nextEvolveAt {
+            nextEvolveAt = now + Double.random(in: 21_600...43_200) * loungeScale
+            if let idx = oldestNormalAdultIndex() { evolveFish(idx) }
         }
     }
 
@@ -897,7 +935,11 @@ final class World {
                     f.eaten += 1
                     bump("meals")
                     if melon { bump("watermelon") }
-                    nextBreed -= melon ? 45 : 30 // 수박은 여름 보양식
+                    // 라운지에선 먹이가 성장을 못 당긴다 — 자동 먹이가 90~180초마다
+                    // 3~5알을 뿌리므로 다 먹히면 135초당 -90~150초, 시간이 두 배로
+                    // 흘러 "2~3일"이 허구가 된다. 거기에 행인이 f를 연타하면 더 빨라져
+                    // 예측 자체가 불가능해진다. 라운지에서 먹이는 연출이고 성장은 시계다.
+                    if !lounge { nextBreed -= melon ? 45 : 30 } // 수박은 여름 보양식
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))
@@ -910,7 +952,7 @@ final class World {
                     shrimp.remove(at: si)
                     f.eaten += 1
                     bump("meals"); bump("shrimpEaten")
-                    nextBreed -= 45 // live food is extra nutritious
+                    if !lounge { nextBreed -= 45 } // live food is extra nutritious
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))
