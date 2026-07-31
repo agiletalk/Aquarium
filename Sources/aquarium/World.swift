@@ -220,6 +220,17 @@ final class World {
     private var nextVisitorAt: Double = 0
     private var nextAutoFeedAt: Double = 0
     private var nextEvolveAt: Double = 0
+    private var nextQRAt: Double = 0
+    private var qrShownUntil: Double = 0
+    /// 모듈 격자는 페이로드가 고정이라 한 번만 만든다 (매 프레임 CoreImage를 돌릴 순 없다).
+    private lazy var qrModules: [[Bool]]? = QRCode.modules(for: Self.loungeQRPayload)
+
+    /// 공개 레포에 사내 채널 주소를 박을 수 없으니 주소는 주입받는다.
+    /// 라운지 맥에서 env 한 줄만 바꾸면 되고 재빌드가 필요 없다.
+    static var loungeQRPayload: String {
+        let env = ProcessInfo.processInfo.environment["AQUARIUM_LOUNGE_QR"] ?? ""
+        return env.isEmpty ? "https://github.com/agiletalk/Aquarium" : env
+    }
     private var visitorSeen: [String: Int] = [:]
     private let debugVisitor = ProcessInfo.processInfo.environment["AQUARIUM_VISITOR"]
 
@@ -319,6 +330,7 @@ final class World {
         if lounge {
             nextAutoFeedAt = startTime + Double.random(in: 20...40) * loungeScale
             nextEvolveAt = startTime + Double.random(in: 21_600...43_200) * loungeScale
+            nextQRAt = startTime + 30
         }
         plantWeeds()
         placeChest()
@@ -851,6 +863,13 @@ final class World {
         if lounge, now >= nextAutoFeedAt {
             nextAutoFeedAt = now + Double.random(in: 90...180) * loungeScale
             if food.count < 20 { sprinkleFood(Int.random(in: 3...5)) }
+        }
+        // QR은 상시 노출이 아니라 잠깐씩 뜬다 — 전시의 본질은 수조고, 오히려
+        // 떴다 사라지는 쪽이 시선을 끈다. (loungeScale은 안 쓴다. 1/1200이면
+        // 압축 모드에서 한 프레임도 안 보인다.)
+        if lounge, now >= nextQRAt {
+            nextQRAt = now + (loungeFast ? 20 : 120)
+            qrShownUntil = now + (loungeFast ? 8 : 20)
         }
 
         updateFish(now)
@@ -1438,6 +1457,11 @@ final class World {
         if rosterOpen { out += rosterOverlay() }
         if mailboxOpen { out += mailboxOverlay() }
         if sponsorOpen { out += sponsorOverlay() }
+        // 패널 셋 중 하나라도 열려 있으면 QR을 접는다 — 겹쳐 그리면 둘 다 못 읽는다.
+        // (라운지 키오스크 가드가 패널 토글을 막지만 코드로도 보장한다.)
+        if lounge, now < qrShownUntil, !rosterOpen, !mailboxOpen, !sponsorOpen {
+            out += loungeQROverlay()
+        }
         return out
     }
 
@@ -1952,6 +1976,49 @@ final class World {
             r += 1
         }
         out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
+        return out + ANSI.reset
+    }
+
+    /// 라운지 설치 QR. 다른 패널과 달리 +---+ 테두리를 두르지 않는다 —
+    /// QR은 사방 4모듈의 *밝은* 여백이 있어야 스캐너가 경계를 찾는데,
+    /// ASCII 테두리는 여백 노릇을 못 하고 오히려 코드를 침범한다.
+    ///
+    /// 그리드 셀이 아니라 오버레이로 그리는 이유: render()에서 오버레이는 그리드
+    /// 뒤에 붙으므로 dimmed()를 통째로 우회한다. 그리드에 넣었다면 밤에 명암이
+    /// 뭉개져 스캔이 안 되고, 셀마다 glow를 강제해야 했다.
+    private func loungeQROverlay() -> String {
+        guard let modules = qrModules, let qrCols = modules.first?.count else { return "" }
+        let qrRows = modules.count / 2 // 하프블록 한 줄 = 모듈 두 행
+
+        // 우측 하단. 행 0은 제목·달(cols/8)·여름 태양(오른쪽 어깨)이 이미 쓰고 있다.
+        // 아래에서부터 쌓지 않으면 모래와 바닥 테두리를 덮어 "자갈에 파묻힌 QR"이 된다.
+        let bottom = sandRow           // 1-based 터미널 행 = 그리드 sandRow-1 (모래 바로 위)
+        let top = bottom - qrRows + 1
+        let left = cols - qrCols - 2
+        // 캡션 한 줄(top-1)까지 자리가 나와야 하고, 물고기가 헤엄칠 여유도 남겨둔다.
+        guard qrCols + 6 <= cols, top >= swimMinRow + 3, bottom < rows else { return "" }
+
+        let caption = L10n.loungeQRCaption
+        let capCol = max(1, left + (qrCols - displayWidth(caption)) / 2)
+        var out = pos(top - 1, capCol) + ANSI.fg(231) + caption
+
+        for r in 0..<qrRows {
+            out += pos(top + r, left)
+            var lastPair: (UInt8, UInt8)? = nil
+            for c in 0..<qrCols {
+                // ▀ 는 전경색이 위쪽 절반, 배경색이 아래쪽 절반을 칠한다.
+                // 터미널 셀이 대략 세로:가로 2:1이라 이 매핑에서 모듈이 정사각형이 된다.
+                let pair: (UInt8, UInt8) = (modules[r * 2][c] ? 16 : 231,
+                                            modules[r * 2 + 1][c] ? 16 : 231)
+                if pair != lastPair ?? (255, 255) {
+                    out += ANSI.fg(pair.0) + ANSI.bg(pair.1)
+                    lastPair = pair
+                }
+                out.append("\u{2580}")
+            }
+        }
+        // 배경색을 남긴 채 끝내면 다음 프레임 그리드에 색 줄무늬로 번진다
+        // (render()는 전경색만 디핑하고 매 프레임 clear를 하지 않는다).
         return out + ANSI.reset
     }
 }

@@ -472,4 +472,10 @@ enum L10n {
         guard index < titles.count else { return "?" }
         return isKorean ? titles[index].ko : titles[index].en
     }
+
+    // MARK: - Lounge (전시 모드)
+
+    /// QR 아래에 붙는 한 줄. QR이 가리키는 곳은 AQUARIUM_LOUNGE_QR로 바뀌므로
+    /// 목적지를 특정하는 문구는 쓰지 않는다.
+    static var loungeQRCaption: String { t("휴대폰으로 스캔해보세요", "Scan me") }
 }
