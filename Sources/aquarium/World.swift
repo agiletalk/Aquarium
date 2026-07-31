@@ -227,9 +227,13 @@ final class World {
 
     /// 공개 레포에 사내 채널 주소를 박을 수 없으니 주소는 주입받는다.
     /// 라운지 맥에서 env 한 줄만 바꾸면 되고 재빌드가 필요 없다.
+    ///
+    /// 기본값에서 "https://"를 뺀 건 코드 크기 때문이다. 8자가 줄면서 QR 버전이
+    /// 3→2로 내려가 화면에서 33x17 → 29x15가 된다. 폰 카메라는 스킴 없는 도메인도
+    /// 링크로 인식한다. 주소가 길수록 QR이 커지므로 env로 바꿀 때도 짧을수록 좋다.
     static var loungeQRPayload: String {
         let env = ProcessInfo.processInfo.environment["AQUARIUM_LOUNGE_QR"] ?? ""
-        return env.isEmpty ? "https://github.com/agiletalk/Aquarium" : env
+        return env.isEmpty ? "github.com/agiletalk/Aquarium" : env
     }
     private var visitorSeen: [String: Int] = [:]
     private let debugVisitor = ProcessInfo.processInfo.environment["AQUARIUM_VISITOR"]
@@ -2003,7 +2007,11 @@ final class World {
         let top = bottom - qrRows + 1
         let left = cols - qrCols - 2
         // 캡션 한 줄(top-1)까지 자리가 나와야 하고, 물고기가 헤엄칠 여유도 남겨둔다.
-        guard qrCols + 6 <= cols, top >= swimMinRow + 3, bottom < rows else { return "" }
+        // 코드가 작아지면서 좁은 창에도 들어가게 됐지만, 어항의 절반을 넘게 차지하면
+        // 수조가 아니라 QR을 전시하는 꼴이라 그때는 통째로 접는다.
+        let swimHeight = swimMaxRow - swimMinRow + 1
+        guard qrCols + 6 <= cols, top >= swimMinRow + 3, bottom < rows,
+              qrRows * 2 <= swimHeight else { return "" }
 
         let caption = L10n.loungeQRCaption
         let capCol = max(1, left + (qrCols - displayWidth(caption)) / 2)

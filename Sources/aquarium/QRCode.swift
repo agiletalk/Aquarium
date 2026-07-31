@@ -7,13 +7,18 @@ import Foundation
 enum QRCode {
     /// 어두운 모듈이 true인 정사각 격자. 사방에 밝은 여백(quiet zone)이 붙어 나온다.
     ///
-    /// 여백은 규격상 4모듈 이상이어야 스캐너가 코드 경계를 찾는다. 필터가 붙여주는
-    /// 여백 폭은 보장된 값이 아니라서, 일단 흰 테두리를 전부 깎아낸 뒤 우리가 다시 채운다.
-    static func modules(for text: String, quietZone: Int = 4) -> [[Bool]]? {
+    /// 필터가 붙여주는 여백 폭은 보장된 값이 아니라서, 흰 테두리를 전부 깎아낸 뒤
+    /// 우리가 다시 채운다. 규격은 4모듈을 요구하지만 화면에 그리는 코드라 2로 줄였다 —
+    /// 전체 크기의 22%가 순수 여백이었다. 스캔이 불안정하면 여기부터 4로 되돌릴 것.
+    static let quietZoneDefault = 2
+
+    static func modules(for text: String, quietZone: Int = quietZoneDefault) -> [[Bool]]? {
         guard let data = text.data(using: .utf8),
               let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
         filter.setValue(data, forKey: "inputMessage")
-        filter.setValue("M", forKey: "inputCorrectionLevel") // CIQRCodeGenerator 기본값
+        // L(7% 복원). 오염·훼손을 견뎌야 하는 인쇄물이라면 M 이상이 맞지만 화면 렌더는
+        // 손상될 일이 없다. 같은 주소가 더 낮은 버전에 담겨 코드가 작아진다.
+        filter.setValue("L", forKey: "inputCorrectionLevel")
         guard let image = filter.outputImage else { return nil }
 
         let w = Int(image.extent.width.rounded())
