@@ -111,6 +111,28 @@ everything else is locked so nobody can quit the tank, open a browser window
 over it, or leave a panel covering the display. Quit it yourself with `Ctrl-C`
 — it saves on the way out, and autosaves every minute regardless.
 
+## A tank the whole team stocks (Slack)
+
+A lounge tank is more fun when it isn't yours. `scripts/lounge-slack-poller.sh`
+watches a Slack channel for `AQUA1.…` gift codes and hands each one to
+`aquarium --adopt`, so a colleague pastes a code and their fish swims into the
+display a minute later. They get a 🐠 back on their message as a receipt — ⚠️ if
+the code was broken.
+
+It's a bash script that needs `curl`, `jq` and a bot token. Outbound polling
+only: no server, no public endpoint, no inbound ports, nothing to keep running.
+**The aquarium binary knows nothing about Slack** — the poller talks to it
+through the same `--adopt` command you'd type by hand, so the same trick works
+for Teams, a shared folder, or anything else that can produce a line of text.
+
+Fish arrive one at a time, a few seconds apart, so twenty codes posted at once
+become a procession instead of a pile-up.
+
+One-time setup checklist (Korean): [`docs/lounge-setup.md`](docs/lounge-setup.md).
+To try the poller without a Slack workspace at all, run
+`bash scripts/dev/test-poller.sh` — it spins up a fake Slack API and exercises
+pagination, rate limits, duplicates and retries.
+
 ## Your commits feed the fish (`--install-hook`)
 
 ```sh

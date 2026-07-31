@@ -115,6 +115,26 @@ AQUARIUM_LOUNGE_QR=https://your.link aquarium --lounge   # QR이 가리킬 주�
 창을 띄우거나, 패널을 열어둔 채 가버릴 수 없습니다. 끌 때는 `Ctrl-C` —
 저장하고 종료하며, 그와 별개로 1분마다 자동 저장됩니다.
 
+## 다 같이 채우는 어항 (Slack)
+
+라운지 어항은 내 것이 아닐 때 더 재밌습니다. `scripts/lounge-slack-poller.sh`가
+Slack 채널을 지켜보다가 `AQUA1.…` 분양 코드를 발견하면 `aquarium --adopt`로
+넘깁니다. 동료가 코드를 붙여넣으면 1~2분 뒤 그 물고기가 화면으로 헤엄쳐
+들어오고, 올린 메시지에는 영수증으로 🐠가 붙습니다 — 코드가 깨졌으면 ⚠️.
+
+`curl`, `jq`, 봇 토큰만 있으면 되는 bash 스크립트입니다. 나가는 방향 폴링만
+쓰기 때문에 서버도, 공개 엔드포인트도, 열어둘 포트도, 계속 띄워둘 프로세스도
+없습니다. **아쿠아리움 바이너리는 Slack의 존재를 모릅니다** — poller는 여러분이
+손으로 치는 것과 똑같은 `--adopt` 명령으로만 대화하므로, Teams든 공유 폴더든
+텍스트 한 줄을 만들어낼 수 있는 것이라면 같은 방식이 그대로 통합니다.
+
+물고기는 몇 초 간격으로 한 마리씩 들어옵니다. 스무 명이 한꺼번에 코드를 올려도
+우르르 쏟아지는 대신 줄지어 입장합니다.
+
+세팅 체크리스트: [`docs/lounge-setup.md`](docs/lounge-setup.md).
+Slack 워크스페이스 없이 poller만 시험해보려면 `bash scripts/dev/test-poller.sh` —
+가짜 Slack API를 띄워 페이지네이션·rate limit·중복·재시도를 전부 돌려봅니다.
+
 ## 커밋이 물고기를 키웁니다 (`--install-hook`)
 
 ```sh
