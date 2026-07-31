@@ -83,6 +83,13 @@ struct Fish {
     var name: String = ""
     var bornAtEpoch: Double = 0 // wall-clock epoch
     var panicUntil: Double = 0  // darting away after being touched
+    /// 입양 물고기의 입장 연출 — systemUptime 데드라인.
+    /// `now < enteringUntil`이 곧 "아직 어항 밖에서 들어오는 중" 플래그다.
+    /// 별도 Bool을 두지 않는 이유: 데드라인이 지나면 updateFish의 하드 스냅이
+    /// 알아서 어항 안으로 끌어당기므로, 리사이즈 등으로 영영 못 들어오는
+    /// 경우의 안전장치가 공짜로 붙는다. 저장하지 않는다(FishState에 좌표가
+    /// 아예 없어서 원리적으로 샐 수 없다).
+    var enteringUntil: Double = 0
     var id: String = UUID().uuidString
     var origin: [String] = []   // 거쳐온 어항들 (여권)
     var morph: Morph = .normal  // 희귀 변종
@@ -365,7 +372,19 @@ final class World {
             spawnJellyfish()
             spawnCleanupCrew()
         }
-        for i in fish.indices { clampToTank(&fish[i]) }
+        let now = self.now
+        for i in fish.indices {
+            if now < fish[i].enteringUntil {
+                // 입장 중엔 x를 어항 안으로 당기지 않는다 — 연출이 끊긴다.
+                // 다만 창이 크게 줄면 오른쪽 입장자가 수십 칸 밖에 남으므로
+                // 새 가장자리까지는 끌어온다. y 클램프는 반드시 유지해야 한다
+                // (밴드 밖이면 drawFish가 건너뛰어 통째로 안 보인다).
+                fish[i].x = min(fish[i].x, Double(cols + 2))
+                clampY(&fish[i])
+            } else {
+                clampToTank(&fish[i])
+            }
+        }
         food.removeAll { $0.x >= Double(cols - 1) }
         bubbles.removeAll { $0.x >= Double(cols - 1) }
     }
@@ -606,7 +625,10 @@ final class World {
     }
 
     /// FishState → Fish 복원 (restore와 입양이 공유)
-    private func makeFish(from state: FishState) -> Fish {
+    /// - Parameter entering: true면 어항 밖에서 헤엄쳐 들어오는 연출로 등장한다.
+    ///   복원은 반드시 false여야 한다 — 껐다 켤 때마다 전원이 입장 행진을 하면
+    ///   "어항을 다시 연다"가 아니라 "어항을 새로 만든다"가 되어버린다.
+    private func makeFish(from state: FishState, entering: Bool = false) -> Fish {
         let species = min(max(0, state.species), allSpecies.count - 1)
         var f = Fish(x: Double.random(in: 2...Double(max(3, cols - 10))),
                      y: Double.random(in: Double(swimMinRow)...Double(max(swimMinRow, swimMaxRow))),
@@ -623,7 +645,16 @@ final class World {
         f.morph = Morph(rawValue: state.morph ?? 0) ?? .normal
         f.personality = Personality(rawValue: state.personality ?? Int.random(in: 0..<Personality.allCases.count)) ?? .shy
         usedNames.insert(f.name)
-        clampToTank(&f)
+        if entering {
+            // 방향을 먼저 정하고 x를 거기서 유도한다. 둘을 독립적으로 굴리면
+            // 절반이 왼쪽 밖에서 왼쪽을 보고 태어나 영영 안 들어온다.
+            f.dir = Bool.random() ? 1 : -1
+            f.x = f.dir > 0 ? -Double(f.art.count) - 1 : Double(cols + 2)
+            f.enteringUntil = now + 10
+            clampY(&f)          // x는 일부러 안 자른다
+        } else {
+            clampToTank(&f)     // 기존 동작 그대로
+        }
         return f
     }
 
@@ -649,6 +680,13 @@ final class World {
     private func clampToTank(_ f: inout Fish) {
         let maxX = Double(max(2, cols - 2 - f.art.count))
         f.x = min(max(1, f.x), maxX)
+        clampY(&f)
+    }
+
+    /// y만 어항 안으로. 입장 중인 물고기는 x가 밖이어도 되지만 y는 반드시
+    /// 유영 밴드 안이어야 한다 — drawFish가 밴드 밖 행을 통째로 건너뛰어서
+    /// 물고기가 통째로 안 보이게 된다.
+    private func clampY(_ f: inout Fish) {
         f.y = min(max(Double(swimMinRow), f.y), Double(max(swimMinRow, swimMaxRow)))
     }
 
@@ -793,6 +831,11 @@ final class World {
 
         for i in fish.indices.reversed() {
             let f = fish[i]
+            // 입장 중엔 못 만진다 — 아래에서 dir을 뒤집는데 입장 분기가 그 dir로
+            // 움직인다. 탭당한 입장자가 그대로 되돌아 나가버린다. 라운지의
+            // 키오스크 가드는 키만 막고 클릭은 통과시키므로, 지나가던 사람이
+            // 유리를 두드리는 라운지가 바로 이게 터지는 곳이다.
+            if now < f.enteringUntil { continue }
             let r = Int(f.y.rounded())
             let c0 = Int(f.x.rounded())
             guard abs(r - row) <= 1, col >= c0 - 1, col <= c0 + f.art.count else { continue }
@@ -919,6 +962,26 @@ final class World {
     private func updateFish(_ now: Double) {
         for i in fish.indices {
             var f = fish[i]
+
+            // 입장 연출 — 어항 밖에서 곧장 헤엄쳐 들어온다. 이 3초 남짓 동안은
+            // 먹이·새우·성장·거품·가장자리 반사를 전부 건너뛴다.
+            //
+            // 아래 분기를 공유하지 않고 전용 분기를 파는 이유는 밤 분기에 있다 —
+            // 0.3% 확률로 dir을 뒤집는데, 입장 40여 틱 동안 한 번만 뒤집혀도
+            // 물고기가 밖으로 되돌아간다. 그리고 라운지는 밤새 돈다.
+            if now < f.enteringUntil {
+                // 느린 종(아귀 0.08, 갈치 0.12)이 제 속도로 들어오면 10초가 걸려
+                // 5초 페이싱 간격을 넘긴다 — 입장 속도에만 바닥을 둔다.
+                // 들어온 뒤엔 제 속도로 돌아간다.
+                f.x += f.dir * max(f.speed, 0.35)
+                let maxX = Double(max(2, cols - 2 - f.art.count))
+                // 도착 즉시 해제한다. 안 지우면 이미 들어온 뒤에도 남은 시간만큼
+                // 가장자리 반사가 면제돼 반대편 벽을 뚫고 나간다.
+                if f.x >= 1, f.x <= maxX { f.enteringUntil = 0 }
+                fish[i] = f
+                continue
+            }
+
             let t = traits(f.personality)
 
             if now < f.panicUntil {
@@ -1395,7 +1458,7 @@ final class World {
         for token in AdoptInbox.drain() {
             guard let state = Passport.decode(token) else { continue }
             if let id = state.id, fish.contains(where: { $0.id == id }) { continue } // 중복 붙여넣기 방지
-            let f = makeFish(from: state)
+            let f = makeFish(from: state, entering: true)
             fish.append(f)
             bump("adopted")
             post(L10n.adopted(f.name, from: f.origin.last))
