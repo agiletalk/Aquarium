@@ -248,6 +248,7 @@ enum L10n {
               aquarium              어항 실행
               aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
               aquarium --season <값>  계절 테마 강제 (auto|none|summer)
+              aquarium --lounge     전시 모드 (무인 상설 전시용)
               aquarium --card       어항 명함 PNG 생성 (SNS 공유용)
               aquarium --install-hook  현재 git 레포에 커밋 보상 훅 설치
               aquarium --reward     커밋 보상 적립 (git hook이 호출)
@@ -269,9 +270,16 @@ enum L10n {
 
             집중이 끝나면 물고기들에게 먹이 대잔치가 열립니다.
 
+            전시 모드(--lounge)는 어항 규칙이 다릅니다:
+              · 어항이 스스로 먹이를 주고 손님도 자주 옵니다
+              · 정원이 화면 크기에 따라 최대 120마리까지 늘고,
+                아기는 2~3일에 한 마리씩만 태어납니다 (먹이로는 못 앞당깁니다)
+              · 설치 QR이 주기적으로 뜨고, f·g·클릭 외의 키는 잠깁니다 (종료는 Ctrl-C)
+
             환경변수:
               AQUARIUM_LANG=ko|en                     언어 강제 지정
               AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   손님이 자주 옵니다 (이스터에그)
+              AQUARIUM_LOUNGE_QR=<주소>               전시 모드 QR이 가리킬 주소
             """
             : """
             aquarium — a healing ASCII aquarium in your terminal
@@ -280,6 +288,7 @@ enum L10n {
               aquarium               run the tank
               aquarium --focus [min] start in pomodoro focus mode (default 25)
               aquarium --season <s>   force the season theme (auto|none|summer)
+              aquarium --lounge      exhibition mode (unattended display)
               aquarium --card        render a shareable PNG tank card
               aquarium --install-hook  install the commit-reward hook in this repo
               aquarium --reward      bank a commit reward (called by the git hook)
@@ -301,9 +310,17 @@ enum L10n {
 
             When a focus session ends, the fish get a feast.
 
+            Exhibition mode (--lounge) changes the tank's rules:
+              · the tank feeds itself and visitors drop by more often
+              · capacity scales with the screen up to 120 fish, and a baby is
+                born only every 2–3 days (feeding can't rush it)
+              · an install QR appears now and then; every key but f, g and
+                mouse clicks is locked (quit with Ctrl-C)
+
             Environment:
               AQUARIUM_LANG=ko|en                     force language
               AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   frequent visitors (easter egg)
+              AQUARIUM_LOUNGE_QR=<url>                where the exhibition QR points
             """
     }
 

@@ -76,6 +76,38 @@ aquarium --season auto     # back to the calendar (the default)
 until you change it. Season is independent from lights: a summer night still
 shows the stars and moon, not the sun.
 
+## Exhibition mode (`--lounge`)
+
+Built for a tank that nobody tends — a spare display in an office lounge, a
+second monitor, a screen at a meetup. The tank looks after itself.
+
+```sh
+aquarium --lounge
+AQUARIUM_LOUNGE_QR=https://your.link aquarium --lounge   # point the QR somewhere else
+```
+
+**It feeds itself.** Food is sprinkled every couple of minutes, and visitors
+(whale, turtle, octopus, sunfish) stop by every 90–200 seconds instead of every
+few minutes.
+
+**It grows slowly, and big.** Capacity scales with the screen up to 120 fish
+(the usual cap is 40), and a new tank opens with 20% of that already swimming.
+From there a baby is born only every **2–3 days** — an exhibition that runs for
+months keeps visibly growing. Feeding does *not* rush it here: with the tank
+feeding itself around the clock, letting food advance the clock would make the
+2–3 days meaningless. Food is for the show; the calendar does the growing. Rare
+morphs still evolve on their own schedule, and no fish is ever sent away.
+
+**It shows an install QR** in the bottom-right corner for 20 seconds every two
+minutes. It points at this repo by default — set `AQUARIUM_LOUNGE_QR` to send
+people somewhere else. The QR is skipped entirely on screens too small to hold
+it without covering the tank.
+
+**It ignores the keyboard.** Passers-by can press `f`, `g` and click the fish;
+everything else is locked so nobody can quit the tank, open a browser window
+over it, or leave a panel covering the display. Quit it yourself with `Ctrl-C`
+— it saves on the way out, and autosaves every minute regardless.
+
 ## Your commits feed the fish (`--install-hook`)
 
 ```sh
