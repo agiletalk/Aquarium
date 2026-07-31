@@ -1454,8 +1454,21 @@ final class World {
     }
 
     /// 입양 인박스를 받아 물고기를 어항에 추가 (정원 초과 허용 — 선물은 특별하니까)
+    ///
+    /// 한 번의 점검(5초)에 한 마리만 들인다. 버스트로 20개가 쏟아져도 차임이
+    /// 20개 겹치지 않고, post()가 4초짜리 슬롯 하나뿐이라 마지막 한 줄만 남던
+    /// 문제도 같이 사라진다. 줄지어 들어오는 게 그대로 연출이 된다.
+    ///
+    /// 간격은 기존 nextInboxCheck 게이트를 그대로 쓴다. 새 타이머도 env 노브도
+    /// 두지 않았다 — 진짜 제약은 "페이싱 간격 > 입장 소요"(5s > 약 3s)인데,
+    /// 노브를 열면 누군가 1초로 맞춰 같은 쪽에서 겹쳐 들어오게 만든다.
     private func ingestAdoptions() {
-        for token in AdoptInbox.drain() {
+        // 페이싱 대상은 '들어온 물고기'지 '소비한 토큰'이 아니다. 중복이나
+        // 손상 토큰이 앞에 쌓였다고 100초를 버릴 이유가 없다 — 거부되는
+        // 토큰은 계속 넘기고 실제로 입장했을 때만 빠져나간다.
+        var attempts = 0
+        while attempts < 20, let token = AdoptInbox.takeFirst() {
+            attempts += 1
             guard let state = Passport.decode(token) else { continue }
             if let id = state.id, fish.contains(where: { $0.id == id }) { continue } // 중복 붙여넣기 방지
             let f = makeFish(from: state, entering: true)
@@ -1463,6 +1476,7 @@ final class World {
             bump("adopted")
             post(L10n.adopted(f.name, from: f.origin.last))
             Sound.playChime()
+            return
         }
     }
 

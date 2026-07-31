@@ -168,13 +168,30 @@ enum AdoptInbox {
         return text.split(separator: "\n").map(String.init)
     }
 
-    static func drain() -> [String] {
-        // 어항 쪽 — 못 잡으면 이번 점검은 건너뛴다. 토큰은 파일에 남아 있다.
-        FileLock.withLock(fileURL) {
-            let lines = drainPeek()
-            if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
-            return lines
-        } ?? []
+    /// 큐 맨 앞 한 줄만 꺼내고 나머지는 파일에 남긴다.
+    ///
+    /// 남기는 게 핵심이다. 전량 드레인해서 메모리 큐에 쥐고 있으면 정전이나
+    /// kill -9에 아직 안 들어온 선물이 통째로 사라진다(핸들러가 안 돈다).
+    /// 파일에 두면 그 문제를 해결하는 게 아니라 애초에 갖지 않는다 —
+    /// 강제종료돼도 남은 물고기가 다음 실행 때 그대로 들어온다.
+    ///
+    /// 어항 쪽이라 재시도하지 않는다. 못 잡으면 이번 점검은 건너뛴다.
+    static func takeFirst() -> String? {
+        let result: String?? = FileLock.withLock(fileURL) { () -> String? in
+            var lines = drainPeek()
+            guard !lines.isEmpty else { return nil }
+            let first = lines.removeFirst()
+            if lines.isEmpty {
+                try? FileManager.default.removeItem(at: fileURL)
+            } else {
+                // 되쓰기가 실패하면 꺼내지 않은 걸로 친다. 성공했다고 반환하면
+                // 같은 토큰이 5초마다 영원히 다시 들어온다.
+                guard (try? lines.joined(separator: "\n")
+                    .write(to: fileURL, atomically: true, encoding: .utf8)) != nil else { return nil }
+            }
+            return first
+        }
+        return result ?? nil
     }
 }
 
