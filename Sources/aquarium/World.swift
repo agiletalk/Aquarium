@@ -218,6 +218,7 @@ final class World {
     var visitor: Visitor?
     private var inkCloud: (x: Double, y: Double, bornAt: Double)?
     private var nextVisitorAt: Double = 0
+    private var nextAutoFeedAt: Double = 0
     private var visitorSeen: [String: Int] = [:]
     private let debugVisitor = ProcessInfo.processInfo.environment["AQUARIUM_VISITOR"]
 
@@ -302,7 +303,10 @@ final class World {
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: 900...1500)
         tankBornAt = Date().timeIntervalSince1970
-        nextVisitorAt = startTime + (debugVisitor != nil ? 4 : Double.random(in: 120...300))
+        nextVisitorAt = startTime + (debugVisitor != nil
+            ? 4
+            : lounge ? Double.random(in: 20...45) : Double.random(in: 120...300))
+        if lounge { nextAutoFeedAt = startTime + Double.random(in: 20...40) * loungeScale }
         plantWeeds()
         placeChest()
         spawnJellyfish()
@@ -815,6 +819,14 @@ final class World {
             nextPostcardCheck = now + 7
             deliverPostcards(announce: true)
         }
+        // 무인 전시라 아무도 f를 눌러주지 않는다 — 어항이 스스로 먹이를 뿌린다.
+        // feed()가 아니라 sprinkleFood()를 부르는 이유: feed()는 feedActions 업적을
+        // 올리고(자동 먹이가 업적을 채우면 무의미해진다) 여름엔 수박을 25% 굴린다.
+        // 커밋 보상·집중 완료 대잔치도 같은 이유로 sprinkleFood를 직접 부른다.
+        if lounge, now >= nextAutoFeedAt {
+            nextAutoFeedAt = now + Double.random(in: 90...180) * loungeScale
+            if food.count < 20 { sprinkleFood(Int.random(in: 3...5)) }
+        }
 
         updateFish(now)
         updateFood(now)
@@ -1227,9 +1239,13 @@ final class World {
     }
 
     private func scheduleNextVisitor(_ now: Double) {
-        nextVisitorAt = now + (debugVisitor != nil
-            ? Double.random(in: 15...25)
-            : Double.random(in: 240...600))
+        // 라운지는 debugVisitor와 별개의 분기다 — AQUARIUM_VISITOR는 종을 고정하므로
+        // 빈도 노브로 재사용하면 전시가 한 종에 박힌다. 라운지 방문객은 무작위여야 한다.
+        let interval: ClosedRange<Double>
+        if debugVisitor != nil { interval = 15...25 }
+        else if lounge { interval = 90...200 }
+        else { interval = 240...600 }
+        nextVisitorAt = now + Double.random(in: interval)
     }
 
     private func visitorArt(_ v: Visitor) -> [[Character]] {
