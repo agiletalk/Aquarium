@@ -275,6 +275,8 @@ enum L10n {
               · 정원이 화면 크기에 따라 최대 120마리까지 늘고,
                 아기는 2~3일에 한 마리씩만 태어납니다 (먹이로는 못 앞당깁니다)
               · 설치 QR이 주기적으로 뜨고, f·g·클릭 외의 키는 잠깁니다 (종료는 Ctrl-C)
+              · 동료가 Slack에 올린 분양 코드를 자동으로 받아올 수 있습니다
+                (scripts/lounge-slack-poller.sh — 세팅은 docs/lounge-setup.md)
 
             환경변수:
               AQUARIUM_LANG=ko|en                     언어 강제 지정
@@ -316,6 +318,8 @@ enum L10n {
                 born only every 2–3 days (feeding can't rush it)
               · an install QR appears now and then; every key but f, g and
                 mouse clicks is locked (quit with Ctrl-C)
+              · it can pick up gift codes your teammates post in Slack
+                (scripts/lounge-slack-poller.sh — setup: docs/lounge-setup.md)
 
             Environment:
               AQUARIUM_LANG=ko|en                     force language
