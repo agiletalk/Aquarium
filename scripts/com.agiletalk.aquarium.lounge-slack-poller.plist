@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  라운지 Slack poller — launchd LaunchAgent 템플릿
+
+  설치: __HOME__ 을 실제 홈 경로로 바꿔 ~/Library/LaunchAgents/ 에 넣는다.
+        자세한 절차는 docs/lounge-setup.md 6단계.
+
+    sed "s|__HOME__|$HOME|g" scripts/com.agiletalk.aquarium.lounge-slack-poller.plist \
+      > ~/Library/LaunchAgents/com.agiletalk.aquarium.lounge-slack-poller.plist
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agiletalk.aquarium.lounge-slack-poller.plist
+
+  주기 변경: scripts/lounge-set-interval.sh <초>
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.agiletalk.aquarium.lounge-slack-poller</string>
+
+  <!-- launchd는 ~ 를 확장하지 않는다. 전부 절대 경로여야 한다. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__HOME__/Aquarium/scripts/lounge-slack-poller.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!--
+    폴링 주기(초). 이 값이 유일한 진실 원천이다 — config 파일에는 주기를
+    두지 않는다. 스크립트는 원샷이라 자기 실행 주기를 스스로 정할 수 없고,
+    config에 적어두면 효력 없는 장식이 되어 실제 주기와 어긋날 때 사람을
+    태운다.
+
+    기본 60초. internal 앱의 conversations.history는 Tier 3(분당 50회 이상)
+    이므로 사용률 약 2%다. 30초도 안전하지만 60을 기본으로 둔 건 헤지다 —
+    누군가 Slack 앱에서 "Activate Public Distribution"을 누르면 분당 1회로
+    떨어지는데, 그건 에러가 아니라 무성 절단이라 알아채기 어렵다.
+
+    바꿀 때는 scripts/lounge-set-interval.sh 를 쓴다(재적용까지 해준다).
+  -->
+  <key>StartInterval</key>
+  <integer>60</integer>
+
+  <!--
+    ⚠️ 이 두 파일은 "평소에 비어 있어야 정상"이다.
+       실제 로그는 ~/.aquarium-lounge/poller.log 이고 회전도 스크립트가 직접
+       한다. launchd가 fd를 O_APPEND로 붙잡고 있는 아래 파일들을 회전시키면
+       이후 출력이 사라진 inode로 조용히 흘러간다.
+  -->
+  <key>StandardOutPath</key>
+  <string>__HOME__/.aquarium-lounge/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.aquarium-lounge/launchd.err.log</string>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__</string>
+
+  <!--
+    🔐 비밀은 절대 여기 두지 않는다. plist는 644라 누구나 읽을 수 있고
+       `launchctl print` 로도 환경 변수가 평문으로 보인다.
+       토큰은 ~/.aquarium-lounge/config (600) 에만 둔다. poller는 그 파일의
+       권한이 600이 아니면 실행을 거부한다.
+  -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>LANG</key>
+    <string>ko_KR.UTF-8</string>
+  </dict>
+
+  <!--
+    KeepAlive는 일부러 넣지 않았다. 이 스크립트는 설계상 즉시 종료하는
+    원샷이라 KeepAlive를 켜면 10초마다 재생성되어 폴링 예산을 태운다.
+  -->
+
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>Nice</key>
+  <integer>5</integer>
+</dict>
+</plist>

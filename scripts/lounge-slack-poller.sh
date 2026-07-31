@@ -130,7 +130,13 @@ atomic_write() { printf '%s\n' "$2" > "$1.tmp.$$" && mv -f "$1.tmp.$$" "$1"; }
 # 수조와 poller가 다른 계정에서 돌면 ~/.aquarium-adopt-inbox 가 갈려서
 # "로그는 입양 OK인데 화면엔 아무것도 없는" 상태가 된다. 서사가 아니라
 # grep 한 번으로 잡히도록 매 런 찍는다.
-log "런 시작 user=$(whoami) HOME=$HOME bin=$AQUARIUM_BIN"
+# 실효 폴링 주기도 같이 남긴다. 주기는 plist가 소유하는데, 설정을 바꾸고
+# 재적용을 잊으면 "30초로 바꿨는데 왜 60초마다 돌지"가 된다. 로그에 있으면
+# 물어볼 필요가 없다. launchd 밖에서 손으로 돌리면 비어 있는 게 정상이다.
+# launchctl은 "run interval = 60 seconds" 로 찍는다. $NF는 "seconds"다.
+poll_interval=$(launchctl print "gui/$(id -u)/com.agiletalk.aquarium.lounge-slack-poller" 2>/dev/null \
+  | sed -n 's/.*run interval = \([0-9][0-9]*\).*/\1/p' | head -1 || true)
+log "런 시작 user=$(whoami) HOME=$HOME bin=$AQUARIUM_BIN 주기=${poll_interval:-수동}"
 
 # ─────────────────────────────────────────────────────────── 락
 # launchd는 동일 라벨을 중복 실행하지 않지만, 세팅 중 사람이 손으로 돌린다.
