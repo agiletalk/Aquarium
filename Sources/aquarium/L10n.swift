@@ -409,6 +409,10 @@ enum L10n {
         t("\(name) 입양 코드를 받았어요! 어항을 열면 헤엄쳐 들어옵니다.",
           "Got the gift code for \(name)! It will swim in when you open your tank.")
     }
+    static var adoptQueueFailed: String {
+        t("입양 코드는 멀쩡한데 대기열에 넣지 못했어요. 잠시 뒤 다시 시도해주세요.",
+          "The gift code is fine, but it could not be queued. Please try again shortly.")
+    }
     static func adopted(_ name: String, from: String?) -> String {
         let base = isKorean ? "\(name)\(objectParticle(name)) 입양했어요!" : "You adopted \(name)!"
         guard let from, !from.isEmpty else { return base }

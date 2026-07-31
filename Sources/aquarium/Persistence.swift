@@ -97,10 +97,18 @@ enum AdoptInbox {
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-adopt-inbox")
     }
 
-    static func deposit(_ token: String) {
+    /// - Returns: 큐에 실제로 적재됐는지. 호출자(`Passport.adopt`)가 이걸로
+    ///   종료 코드를 가른다 — poller가 유실된 코드에 🐠를 붙이면 안 된다.
+    @discardableResult
+    static func deposit(_ token: String) -> Bool {
         var lines = drainPeek()
         lines.append(token)
-        try? lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+        do {
+            try lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+            return true
+        } catch {
+            return false
+        }
     }
 
     private static func drainPeek() -> [String] {

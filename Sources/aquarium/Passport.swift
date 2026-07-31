@@ -127,7 +127,14 @@ enum Passport {
             print(L10n.adoptInvalid)
             exit(1)
         }
-        AdoptInbox.deposit(prefix + String(code.trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(prefix.count)))
+        let token = prefix + String(code.trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(prefix.count))
+        guard AdoptInbox.deposit(token) else {
+            // 코드는 멀쩡한데 큐에 못 넣었다. exit 1(= 잘못된 코드)을 쓰면
+            // 자동화(Slack poller 등)가 ⚠️를 붙이고 영영 끝내버린다 — 이건
+            // 재시도해야 하는 실패다. 75는 sysexits.h의 EX_TEMPFAIL.
+            print(L10n.adoptQueueFailed)
+            exit(75)
+        }
         print(L10n.adoptQueued(fish.name ?? "?"))
     }
 }
