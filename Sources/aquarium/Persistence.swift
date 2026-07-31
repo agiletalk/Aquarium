@@ -47,6 +47,39 @@ struct Postcard: Codable {
     var read: Bool
 }
 
+/// flock(2) 기반 프로세스 간 배타 락.
+///
+/// 락 대상은 데이터 파일이 아니라 옆에 둔 `.lock` 사이드카다. 이게 요점이다 —
+/// 적재는 write(atomically:)로 rename하고 소비는 removeItem으로 unlink한다.
+/// 둘 다 inode를 갈아치우기 때문에 데이터 파일을 직접 잠그면 상대는 이미
+/// 떨어져 나간 inode를 잠그게 되고, 락은 조용히 무력화된다. 테스트에서는
+/// "동작하는 것처럼" 보인다.
+///
+/// 전부 LOCK_NB다. 어항은 12.5fps 렌더 루프 안에서 큐를 훑는데 여기서
+/// 블로킹되면 화면이 그대로 멈춘다. 못 잡으면 실패하고 다음 점검에서 다시
+/// 온다 — 데이터는 파일에 남아 있으니 잃는 게 없다.
+enum FileLock {
+    /// - Parameter retries: 50ms 간격 재시도 횟수. 잠깐 기다려도 되는
+    ///   CLI만 쓴다(어항은 0).
+    /// - Returns: 락을 못 잡으면 nil. `body`가 아예 실행되지 않았다는 뜻이다.
+    static func withLock<T>(_ url: URL, retries: Int = 0, _ body: () -> T) -> T? {
+        let fd = open(url.path + ".lock", O_RDWR | O_CREAT, 0o644)
+        // 락 파일조차 못 열면(읽기 전용 HOME 등) 락 없이 진행한다 — 지금까지의
+        // 동작 그대로다. 락을 못 만든다고 선물을 버릴 이유는 없다.
+        guard fd >= 0 else { return body() }
+        defer { close(fd) }
+
+        var attempt = 0
+        while flock(fd, LOCK_EX | LOCK_NB) != 0 {
+            guard attempt < retries else { return nil }
+            attempt += 1
+            usleep(50_000)
+        }
+        defer { flock(fd, LOCK_UN) }
+        return body()
+    }
+}
+
 enum SaveStore {
     static var fileURL: URL {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
@@ -72,7 +105,14 @@ enum RewardInbox {
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-inbox")
     }
 
+    /// 커밋 훅이 부른다. 락을 끝내 못 잡으면 락 없이 진행한다 — 호출자가
+    /// 실패로 할 수 있는 일이 없고(훅은 커밋을 되돌리지 않는다), 유실돼도
+    /// 먹이 몇 알이다. 선물과 달리 되돌릴 수 없는 손실이 아니다.
     static func deposit() -> Int {
+        FileLock.withLock(fileURL, retries: 10, depositLocked) ?? depositLocked()
+    }
+
+    private static func depositLocked() -> Int {
         let next = pending() + 1
         try? "\(next)".write(to: fileURL, atomically: true, encoding: .utf8)
         return next
@@ -84,9 +124,12 @@ enum RewardInbox {
     }
 
     static func consume() -> Int {
-        let count = pending()
-        if count > 0 { try? "0".write(to: fileURL, atomically: true, encoding: .utf8) }
-        return count
+        // 어항 쪽 — 못 잡으면 이번 점검은 건너뛴다. 숫자는 파일에 남아 있다.
+        FileLock.withLock(fileURL) {
+            let count = pending()
+            if count > 0 { try? "0".write(to: fileURL, atomically: true, encoding: .utf8) }
+            return count
+        } ?? 0
     }
 }
 
@@ -99,16 +142,25 @@ enum AdoptInbox {
 
     /// - Returns: 큐에 실제로 적재됐는지. 호출자(`Passport.adopt`)가 이걸로
     ///   종료 코드를 가른다 — poller가 유실된 코드에 🐠를 붙이면 안 된다.
+    /// - Returns: 큐에 실제로 적재됐는지. 호출자(`Passport.adopt`)가 이걸로
+    ///   종료 코드를 가른다 — poller가 유실된 코드에 🐠를 붙이면 안 된다.
+    ///
+    /// 여기만 락 실패를 실패로 보고한다(Reward/Release는 락 없이 강행한다).
+    /// 선물은 되돌릴 수 없는 손실이고, 호출자가 exit 75로 재시도를 시킬 수
+    /// 있기 때문이다 — 알릴 수 있는 곳에서는 알리고, 아무도 손쓸 수 없는
+    /// 곳에서만 조용히 물러난다.
     @discardableResult
     static func deposit(_ token: String) -> Bool {
-        var lines = drainPeek()
-        lines.append(token)
-        do {
-            try lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
-            return true
-        } catch {
-            return false
-        }
+        FileLock.withLock(fileURL, retries: 10) {
+            var lines = drainPeek()
+            lines.append(token)
+            do {
+                try lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+                return true
+            } catch {
+                return false
+            }
+        } ?? false
     }
 
     private static func drainPeek() -> [String] {
@@ -117,9 +169,12 @@ enum AdoptInbox {
     }
 
     static func drain() -> [String] {
-        let lines = drainPeek()
-        if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
-        return lines
+        // 어항 쪽 — 못 잡으면 이번 점검은 건너뛴다. 토큰은 파일에 남아 있다.
+        FileLock.withLock(fileURL) {
+            let lines = drainPeek()
+            if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
+            return lines
+        } ?? []
     }
 }
 
@@ -130,10 +185,15 @@ enum ReleaseOutbox {
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-release-outbox")
     }
 
+    /// 락을 끝내 못 잡으면 락 없이 강행한다 — 호출자(`--release`)가 이미
+    /// 코드를 출력하기 직전이라 실패로 할 수 있는 일이 없다.
     static func request(_ name: String) {
-        var lines = peek()
-        lines.append(name)
-        try? lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+        let write = {
+            var lines = peek()
+            lines.append(name)
+            try? lines.joined(separator: "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+        }
+        if FileLock.withLock(fileURL, retries: 10, write) == nil { write() }
     }
 
     private static func peek() -> [String] {
@@ -142,8 +202,11 @@ enum ReleaseOutbox {
     }
 
     static func drain() -> [String] {
-        let lines = peek()
-        if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
-        return lines
+        // 어항 쪽 — 못 잡으면 이번 점검은 건너뛴다. 이름은 파일에 남아 있다.
+        FileLock.withLock(fileURL) {
+            let lines = peek()
+            if !lines.isEmpty { try? FileManager.default.removeItem(at: fileURL) }
+            return lines
+        } ?? []
     }
 }
