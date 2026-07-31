@@ -36,8 +36,60 @@ enum Passport {
         fish.eaten = min(max(0, fish.eaten), 99_999)
         if let m = fish.morph { fish.morph = min(max(0, m), rareMorphs.count) }
         if let p = fish.personality { fish.personality = min(max(0, p), Personality.allCases.count - 1) }
-        if let name = fish.name, name.count > 20 { fish.name = String(name.prefix(20)) }
+
+        // 속도: 종별 범위 합집합이 0.08...0.7이고 아기가 0.2...0.45다. 정상값을
+        // 절대 건드리지 않도록 넉넉하게 자른다. 비유한값은 0이 아니라 종의
+        // 하한으로 — 속도 0인 물고기는 영원히 한 자리에 멈춰 선다.
+        // (species 클램프 뒤여야 한다. allSpecies[fish.species]를 읽는다.)
+        fish.speed = fish.speed.isFinite
+            ? min(max(0.05, fish.speed), 1.0)
+            : allSpecies[fish.species].speed.lowerBound
+
+        // 성장 잔여: spawnBaby가 심는 값은 30~55초뿐이다.
+        if let g = fish.growRemaining {
+            fish.growRemaining = g.isFinite ? min(max(0, g), 300) : nil
+        }
+
+        // 출생 시각: 도감이 Int((now - bornAt) / 86400)을 만든다(World.swift).
+        // isFinite만으로는 못 막는다 — 1e308 같은 '멀쩡한' 유한값도 몫이 Int
+        // 범위를 넘겨 그 자리에서 트랩이다. 범위를 벗어나면 nil로 떨궈
+        // makeFish가 tankBornAt으로 대체하게 둔다(기존 동작).
+        let nowEpoch = Date().timeIntervalSince1970
+        if let b = fish.bornAt, !(b.isFinite && b >= 0 && b <= nowEpoch + 86_400) {
+            fish.bornAt = nil
+        }
+
+        if let id = fish.id, id.count > 64 { fish.id = String(id.prefix(64)) }
+
+        // 이름·여권은 상태줄과 도감에 그대로 찍힌다(이스케이프 없음). 코드가
+        // 반공개 채널을 타고 오므로 ESC 시퀀스가 섞이면 화면이 지워진다.
+        // origin은 발신자 머신의 AQUARIUM_TANKNAME에서 온다.
+        fish.name = sanitized(fish.name, max: 20)
+        if let origin = fish.origin {
+            // suffix — origin.last가 표시되고 release가 뒤에 append한다.
+            let cleaned = origin.compactMap { sanitized($0, max: 20) }
+            fish.origin = cleaned.isEmpty ? nil : Array(cleaned.suffix(20))
+        }
+        // color는 UInt8이라 0...255가 전부 유효한 ANSI 인덱스 — 클램프할 게 없다.
+        // color2는 FishState에 없다(Fish 전용 표시 필드).
         return fish
+    }
+
+    /// 터미널 제어문자(C0 + DEL + C1)를 걷어내고 길이를 자른다.
+    /// 빈 문자열이 되면 nil을 돌려 makeFish가 새 이름을 붙이게 한다.
+    ///
+    /// CharacterSet.controlCharacters를 쓰지 않는다 — 그쪽은 Cf(포맷)까지
+    /// 걸러서 ZWJ로 이어붙인 이모지 이름이 깨진다. 터미널이 실제로
+    /// 실행해버리는 건 C0/C1뿐이다.
+    private static func sanitized(_ s: String?, max: Int) -> String? {
+        guard let s else { return nil }
+        var scalars = String.UnicodeScalarView()
+        for u in s.unicodeScalars
+        where !(u.value < 0x20 || u.value == 0x7F || (0x80...0x9F).contains(u.value)) {
+            scalars.append(u)
+        }
+        let cleaned = String(String(scalars).prefix(max))
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     // MARK: - CLI
