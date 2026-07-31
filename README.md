@@ -103,7 +103,8 @@ minutes. It points at this repo by default — set `AQUARIUM_LOUNGE_QR` to send
 people somewhere else. **A shorter URL means a smaller code** — the default fits
 in 29×15 characters, a long deep link needs 33×17 or more. The QR is skipped
 entirely on screens too small to hold it without covering the tank, or whenever
-it would take up more than half the swimming area.
+it would take up more than half the swimming area. On a light-background terminal
+the code is drawn straight onto the water with no white card behind it.
 
 **It ignores the keyboard.** Passers-by can press `f`, `g` and click the fish;
 everything else is locked so nobody can quit the tank, open a browser window

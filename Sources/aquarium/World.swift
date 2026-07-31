@@ -2013,23 +2013,42 @@ final class World {
         guard qrCols + 6 <= cols, top >= swimMinRow + 3, bottom < rows,
               qrRows * 2 <= swimHeight else { return "" }
 
+        // 밝은 터미널이면 흰 카드를 깔지 않고 배경을 그대로 비춘다. 밝은 모듈이
+        // 터미널 배경색이 되므로 여전히 균일하고, 화면에서 차지하는 무게가 확 준다.
+        // 어두운 터미널·응답 없는 터미널은 흰 카드를 유지한다 — 검은 모듈을 어두운
+        // 배경에 그리면 대비가 사라지고, 반전 QR은 못 읽는 스캐너가 있다.
+        let seeThrough = terminalDark == false
+
         let caption = L10n.loungeQRCaption
         let capCol = max(1, left + (qrCols - displayWidth(caption)) / 2)
-        var out = pos(top - 1, capCol) + ANSI.fg(231) + caption
+        var out = pos(top - 1, capCol) + ANSI.fg(seeThrough ? 240 : 231) + caption
 
-        for r in 0..<qrRows {
-            out += pos(top + r, left)
-            var lastPair: (UInt8, UInt8)? = nil
-            for c in 0..<qrCols {
-                // ▀ 는 전경색이 위쪽 절반, 배경색이 아래쪽 절반을 칠한다.
-                // 터미널 셀이 대략 세로:가로 2:1이라 이 매핑에서 모듈이 정사각형이 된다.
-                let pair: (UInt8, UInt8) = (modules[r * 2][c] ? 16 : 231,
-                                            modules[r * 2 + 1][c] ? 16 : 231)
-                if pair != lastPair ?? (255, 255) {
-                    out += ANSI.fg(pair.0) + ANSI.bg(pair.1)
-                    lastPair = pair
+        if seeThrough {
+            // 배경을 안 칠하니 색 지정이 앞에 한 번이면 끝난다 (프레임 바이트도 준다).
+            out += ANSI.bgDefault + ANSI.fg(16)
+            for r in 0..<qrRows {
+                out += pos(top + r, left)
+                for c in 0..<qrCols {
+                    let up = modules[r * 2][c], down = modules[r * 2 + 1][c]
+                    // 밝은 모듈은 공백 — 배경을 칠하지 않되 뒤의 수조는 지워진다.
+                    out.append(up && down ? "\u{2588}" : up ? "\u{2580}" : down ? "\u{2584}" : " ")
                 }
-                out.append("\u{2580}")
+            }
+        } else {
+            for r in 0..<qrRows {
+                out += pos(top + r, left)
+                var lastPair: (UInt8, UInt8)? = nil
+                for c in 0..<qrCols {
+                    // ▀ 는 전경색이 위쪽 절반, 배경색이 아래쪽 절반을 칠한다.
+                    // 터미널 셀이 대략 세로:가로 2:1이라 이 매핑에서 모듈이 정사각형이 된다.
+                    let pair: (UInt8, UInt8) = (modules[r * 2][c] ? 16 : 231,
+                                                modules[r * 2 + 1][c] ? 16 : 231)
+                    if pair != lastPair ?? (255, 255) {
+                        out += ANSI.fg(pair.0) + ANSI.bg(pair.1)
+                        lastPair = pair
+                    }
+                    out.append("\u{2580}")
+                }
             }
         }
         // 배경색을 남긴 채 끝내면 다음 프레임 그리드에 색 줄무늬로 번진다

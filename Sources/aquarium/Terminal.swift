@@ -25,6 +25,8 @@ enum ANSI {
     /// 라운지 QR 전용. 어두운 터미널에 흰 블록만 찍으면 명암이 반전된 QR이 되고,
     /// 반전 QR을 못 읽는 스캐너가 아직 있다. 밝은 배경 위에 어두운 모듈을 그린다.
     static func bg(_ color: UInt8) -> String { "\u{1B}[48;5;\(color)m" }
+    /// 배경을 터미널 기본색으로 되돌린다 (칠하지 않음).
+    static let bgDefault = "\u{1B}[49m"
 }
 
 final class Terminal {
