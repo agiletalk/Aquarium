@@ -401,17 +401,16 @@ final class World {
                 bornAges.append(away) // seconds this fish has already lived
             }
         }
-        // breedRemaining은 세이브에 남으므로 모드를 바꿔 열면 어긋난다. 라운지 세이브를
-        // 일반 모드로 열면 3일간 번식이 멈추고(오너가 --lounge를 테스트하고 끄면 바로
-        // 겪는다), 일반 세이브를 라운지로 열면 첫 아기가 25분 만에 나온다. 양쪽 다
-        // 현재 모드의 상한으로 맞춘다.
-        var next = remaining - away
-        if lounge {
-            next = next <= 1500 ? Double.random(in: breedInterval) : min(next, breedInterval.upperBound)
-        } else {
-            next = min(next, 1500)
-        }
-        nextBreed = now + max(0, next)
+        // breedRemaining은 세이브에 남으므로 모드를 바꿔 열면 남은 시간이 현재 모드의
+        // 범위를 벗어난다. 라운지 세이브를 일반 모드로 열면 3일간 번식이 멈추는데,
+        // 오너가 --lounge를 테스트하고 끄면 바로 겪는 함정이다. 상한으로만 자른다.
+        //
+        // 반대 방향(일반 세이브 → 라운지)은 일부러 손대지 않는다. 첫 아기가 25분 만에
+        // 나오고 그 뒤로 2~3일 주기가 되는데, 어항을 전시용으로 옮겨온 첫날 한 번뿐이라
+        // 무해하다. "짧으면 새로 뽑기"로 처리하면 라운지 카운트다운이 막바지(마지막
+        // 25분)일 때 재시작이 걸리면 2~3일이 통째로 리셋된다 — 정전 한 번에 전시의
+        // 성장이 조용히 날아가는 쪽이 훨씬 나쁘다.
+        nextBreed = now + max(0, min(remaining - away, breedInterval.upperBound))
 
         for age in bornAges {
             if age >= 45 {
