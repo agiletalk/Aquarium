@@ -1435,7 +1435,8 @@ final class World {
 
         let grid = composeGrid()
 
-        var out = ANSI.home
+        // 프레임 전체를 동기화 출력으로 감싼다 — 터미널이 중간 상태를 그리지 않는다.
+        var out = ANSI.syncBegin + ANSI.home
         var lastColor: UInt8 = 0
         for (r, row) in grid.enumerated() {
             if r > 0 { out += "\r\n" }
@@ -1461,7 +1462,7 @@ final class World {
         if lounge, now < qrShownUntil, !rosterOpen, !mailboxOpen, !sponsorOpen {
             out += loungeQROverlay()
         }
-        return out
+        return out + ANSI.syncEnd
     }
 
     /// Darkens a 256-color index at night; identity during the day.

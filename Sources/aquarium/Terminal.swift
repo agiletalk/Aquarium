@@ -16,6 +16,11 @@ enum ANSI {
     static let wrapOff = "\u{1B}[?7l"
     static let wrapOn = "\u{1B}[?7h"
 
+    /// DEC 2026 — 동기화 출력. 프레임 전체를 감싸면 터미널이 다 받을 때까지 화면에
+    /// 반영하지 않고 한 번에 present한다. 모르는 터미널은 사설 모드라 그냥 무시한다.
+    static let syncBegin = "\u{1B}[?2026h"
+    static let syncEnd = "\u{1B}[?2026l"
+
     static func fg(_ color: UInt8) -> String { "\u{1B}[38;5;\(color)m" }
     /// 라운지 QR 전용. 어두운 터미널에 흰 블록만 찍으면 명암이 반전된 QR이 되고,
     /// 반전 QR을 못 읽는 스캐너가 아직 있다. 밝은 배경 위에 어두운 모듈을 그린다.
@@ -32,6 +37,12 @@ final class Terminal {
     private let TIOCGWINSZ_DARWIN: UInt = 0x4008_7468
 
     func setup() {
+        // stdout이 tty면 C 표준 입출력은 줄 버퍼링이라, 한 프레임(수십 KB)을 fputs로
+        // 넘겨도 개행마다 flush돼서 write가 행 수만큼 쪼개진다. 터미널은 그 조각들을
+        // 받는 족족 그리므로 화면이 위에서 아래로 훑리며 갱신되는 게 눈에 보인다.
+        // 창이 클수록(행이 많을수록) 심해진다. 프레임을 통째로 한 번에 내보낸다.
+        setvbuf(stdout, nil, _IOFBF, 1 << 18)
+
         if isatty(STDIN_FILENO) == 1, tcgetattr(STDIN_FILENO, &original) == 0 {
             var raw = original
             raw.c_lflag &= ~tcflag_t(ECHO | ICANON)
@@ -47,7 +58,9 @@ final class Terminal {
     }
 
     func teardown() {
-        fputs("\u{1B}[?1006l\u{1B}[?1000l"
+        // syncEnd를 먼저 — 프레임 도중에 죽었으면 터미널이 아직 화면을 붙들고 있다.
+        // (터미널마다 타임아웃이 있어 결국 풀리지만 명시적으로 풀어주는 게 안전하다.)
+        fputs(ANSI.syncEnd + "\u{1B}[?1006l\u{1B}[?1000l"
               + ANSI.reset + ANSI.wrapOn + ANSI.altScreenOff + ANSI.showCursor, stdout)
         fflush(stdout)
         if rawEnabled {
