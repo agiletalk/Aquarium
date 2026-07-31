@@ -1800,7 +1800,14 @@ final class World {
         }
         let unread = mailbox.filter { !$0.read }.count
         if unread > 0 { line += sep + ANSI.fg(213) + L10n.statusUnread(unread) }
-        line += sep + ANSI.fg(245) + L10n.helpLine
+        if lounge {
+            // 키바인드 목록은 대부분의 키가 막힌 무인 전시에선 무용하다.
+            // 15초마다 한 줄씩 돌아가며 지나가는 사람에게 말을 건다.
+            let i = Int((now - startTime) / 15) % L10n.loungeHintCount
+            line += sep + ANSI.fg(245) + L10n.loungeHint(i)
+        } else {
+            line += sep + ANSI.fg(245) + L10n.helpLine
+        }
         if now < messageUntil {
             line += ANSI.fg(213) + "   " + message
         }

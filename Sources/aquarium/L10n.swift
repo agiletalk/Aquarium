@@ -478,4 +478,23 @@ enum L10n {
     /// QR 아래에 붙는 한 줄. QR이 가리키는 곳은 AQUARIUM_LOUNGE_QR로 바뀌므로
     /// 목적지를 특정하는 문구는 쓰지 않는다.
     static var loungeQRCaption: String { t("휴대폰으로 스캔해보세요", "Scan me") }
+
+    /// 무인 전시의 상태줄 문구. 키바인드 목록(helpLine)은 대부분의 키가 막혀 있어
+    /// 무용하므로 이걸로 갈아 끼운다. 인덱스 풀 패턴은 postcardLocation과 동일.
+    /// QR 목적지를 특정하는 문구는 넣지 않는다 — 기본값은 사내 채널이 아니다.
+    static let loungeHintCount = 5
+    static func loungeHint(_ i: Int) -> String {
+        let ko = ["f를 누르면 먹이를 줄 수 있어요",
+                  "물고기를 클릭하면 화들짝 놀라요",
+                  "QR을 찍어보세요",
+                  "이 수조는 터미널에서 돌아갑니다",
+                  "아기 물고기는 며칠에 한 마리씩 태어나요"]
+        let en = ["Press f to feed the fish",
+                  "Click a fish and watch it startle",
+                  "Scan the QR code",
+                  "This tank runs in a terminal",
+                  "A baby is born every few days"]
+        let a = isKorean ? ko : en
+        return a[min(max(0, i), a.count - 1)]
+    }
 }
