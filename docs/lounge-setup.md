@@ -34,12 +34,21 @@ brew install jq
 
 ## 2. Slack 앱 만들기
 
-### 2-1. 앱 생성
+### 2-1. 앱 생성 — 매니페스트로 (권장)
 
-<https://api.slack.com/apps> → **Create New App** → **From scratch** →
-이름(예: `수조봇`) → 워크스페이스 선택.
+<https://api.slack.com/apps> → **Create New App** → **From a manifest** →
+워크스페이스 선택 → [`docs/slack-app-manifest.yml`](slack-app-manifest.yml)
+내용을 붙여넣기 → **Create**.
 
-### 2-2. 스코프
+스코프가 미리 박혀 있어서 **2-2를 건너뛸 수 있고**, 아래 "Reinstall 함정"도
+애초에 발생하지 않는다. 비공개 채널이면 매니페스트의 `channels:history` 를
+`groups:history` 로 바꿔서 붙여넣는다.
+
+> 손으로 만들려면 **Blank app** 을 고른다 (예전 "From scratch" 가 이 이름으로
+> 바뀌었다. 위쪽 `AI agent` / `Starter app` 은 우리와 무관한 템플릿이다).
+> 그다음 2-2로.
+
+### 2-2. 스코프 — 손으로 만들었을 때만
 
 **OAuth & Permissions** → **Bot Token Scopes** 에 추가한다.
 

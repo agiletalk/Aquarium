@@ -1,0 +1,41 @@
+# 라운지 Slack poller 용 봇 앱 매니페스트
+#
+# 사용법: https://api.slack.com/apps → Create New App → "From a manifest"
+#         → 워크스페이스 선택 → 이 파일 내용을 붙여넣기 → Create
+#
+# 스코프가 미리 박혀 있어서 "스코프를 나중에 추가하고 Reinstall을 잊는" 사고가
+# 원천적으로 없다. 앱을 만든 뒤 Install to Workspace 한 번이면 끝이다.
+#
+# ⚠️ 채널이 비공개면 channels:history 를 groups:history 로 바꿀 것.
+#    둘 다 넣어도 되지만, 안 쓰는 권한은 안 주는 게 낫다.
+#
+# ⛔ 만든 뒤 "Activate Public Distribution"은 절대 누르지 말 것.
+#    conversations.history 가 분당 50회 → 분당 1회로 조용히 떨어진다.
+#    자세한 내용은 docs/lounge-setup.md 2-3절.
+
+_metadata:
+  major_version: 2
+  minor_version: 1
+
+display_information:
+  name: 수조봇
+  description: 채널에 올라온 분양 코드를 라운지 수조로 보냅니다
+  background_color: "#1f6f8b"
+
+features:
+  bot_user:
+    display_name: 수조봇
+    always_online: false
+
+oauth_config:
+  scopes:
+    bot:
+      # 채널 메시지에서 AQUA1 분양 코드를 읽는다 (비공개 채널이면 groups:history)
+      - channels:history
+      # 영수증으로 🐠 / ⚠️ 를 단다
+      - reactions:write
+
+settings:
+  # 이 앱은 아웃바운드 폴링만 한다 — 소켓도 이벤트 구독도 필요 없다
+  socket_mode_enabled: false
+  org_deploy_enabled: false
