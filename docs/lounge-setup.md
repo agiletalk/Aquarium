@@ -90,7 +90,9 @@ ID는 Slack UI에서 한 번 복사하면 끝이다. 스코프는 적을수록 �
 ### 2-5. 채널 초대 + 채널 ID
 
 1. 채널을 만든다 (예: `#aquarium-lounge`)
-2. 채널에서 `/invite @수조봇` — **공개·비공개 모두 초대가 필수**다.
+2. 채널에서 `/invite @aquarium` — **공개·비공개 모두 초대가 필수**다.
+   (핸들은 매니페스트의 `features.bot_user.display_name` 값이다. 앱 이름이
+   아니라 이쪽이니 헷갈리지 말 것.)
    봇 토큰은 스코프가 있어도 **자기가 속한 대화만** 읽을 수 있다
    ([conversations.history 문서](https://docs.slack.dev/reference/methods/conversations.history):
    "Only user tokens can access public channels they are not in").

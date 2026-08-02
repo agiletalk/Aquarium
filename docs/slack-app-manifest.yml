@@ -24,7 +24,11 @@ display_information:
 
 features:
   bot_user:
-    display_name: 수조봇
+    # ⚠️ 여기는 @username으로 변환되는 값이라 a-z, 0-9, -, _, . 만 된다.
+    #    한글이나 대문자를 넣으면 "cannot be converted to a username" 에러가 난다.
+    #    (앱 이름인 위쪽 display_information.name 은 한글이 된다.)
+    #    채널에서 부를 때도 이 이름이다 → /invite @aquarium
+    display_name: aquarium
     always_online: false
 
 oauth_config:
