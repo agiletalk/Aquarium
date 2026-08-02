@@ -81,8 +81,12 @@ ID는 Slack UI에서 한 번 복사하면 끝이다. 스코프는 적을수록 �
 ### 2-5. 채널 초대 + 채널 ID
 
 1. 채널을 만든다 (예: `#aquarium-lounge`)
-2. 채널에서 `/invite @수조봇` — **프라이빗 채널이면 초대가 필수**다.
-   초대 전에는 `not_in_channel` 이 아니라 `channel_not_found` 가 뜬다.
+2. 채널에서 `/invite @수조봇` — **공개·비공개 모두 초대가 필수**다.
+   봇 토큰은 스코프가 있어도 **자기가 속한 대화만** 읽을 수 있다
+   ([conversations.history 문서](https://docs.slack.dev/reference/methods/conversations.history):
+   "Only user tokens can access public channels they are not in").
+   초대를 빠뜨리면 공개 채널은 `not_in_channel`, 비공개 채널은 아예 보이지
+   않아서 `channel_not_found` 가 뜬다 — 같은 원인인데 증상이 다르다.
 3. 채널 이름 클릭 → 맨 아래 **채널 ID: `C0123ABCD`** 복사.
    (또는 채널 우클릭 → 링크 복사 → URL 마지막 조각 `.../archives/C0123ABCD`)
 
