@@ -498,6 +498,78 @@ enum L10n {
         return isKorean ? titles[index].ko : titles[index].en
     }
 
+    // MARK: - Clap 권한 (--clap)
+
+    /// 권한 창 직전. 프롬프트에 뜨는 이름이 aquarium이 아니라 **터미널 앱**이라는
+    /// 걸 미리 말해줘야 사람이 "왜 갑자기 iTerm이?" 하며 거절하지 않는다.
+    /// 번들 없는 CLI라 TCC가 권한을 실행시킨 터미널 앱에 귀속시킨다.
+    static var clapPrompting: String {
+        t("""
+          👏 박수 반응에는 마이크가 필요합니다.
+             곧 뜨는 권한 창은 'aquarium'이 아니라 지금 쓰는 터미널 앱 이름
+             (Terminal · iTerm · Ghostty 등)으로 뜹니다 — 명령줄 프로그램이라
+             원래 그렇습니다. '허용'을 눌러주세요.
+             소리는 크기(RMS)만 재고 즉시 버립니다. 녹음·저장·전송이 없습니다.
+          """,
+          """
+          👏 Clap reactions need the microphone.
+             The prompt will name your terminal app (Terminal, iTerm, Ghostty, ...)
+             rather than 'aquarium' — that's normal for a command-line program.
+             Click Allow.
+             Only loudness (RMS) is measured, then discarded at once. Nothing is
+             recorded, stored, or sent.
+          """)
+    }
+
+    static var clapDenied: String {
+        t("""
+          👏 마이크 권한이 없어 박수 반응을 끕니다.
+             시스템 설정 > 개인정보 보호 및 보안 > 마이크 에서 **터미널 앱**
+             (aquarium이 아닙니다)을 켜고 그 터미널을 완전히 종료했다 다시 여세요.
+             권한은 터미널 앱마다 따로입니다 — 다른 터미널에서 허용해둔 건
+             소용없습니다.
+          """,
+          """
+          👏 No microphone access — clap reactions are off.
+             System Settings > Privacy & Security > Microphone: enable your
+             TERMINAL app (not 'aquarium'), then fully quit and reopen it.
+             The grant is per terminal app — allowing it in a different terminal
+             doesn't carry over.
+          """)
+    }
+
+    static var clapRestricted: String {
+        t("👏 이 맥은 정책(MDM·스크린타임)으로 마이크가 잠겨 있어 박수 반응을 끕니다.",
+          "👏 Microphone use is restricted on this Mac (MDM or Screen Time) — clap reactions are off.")
+    }
+
+    static var clapNoMicrophone: String {
+        t("👏 마이크를 찾지 못해 박수 반응을 끕니다 (내장 마이크가 없는 Mac mini 등).",
+          "👏 No microphone found — clap reactions are off (a Mac mini with no built-in mic, for example).")
+    }
+
+    static var clapEngineFailed: String {
+        t("👏 오디오 입력을 열 수 없어 박수 반응을 끕니다 (다른 앱이 마이크를 독점 중일 수 있습니다).",
+          "👏 Couldn't open audio input — clap reactions are off (another app may have exclusive use of the mic).")
+    }
+
+    /// 엔진은 도는데 샘플이 전부 0인 경우. 하드웨어 뮤트, 입력 볼륨 0,
+    /// 신호 없는 가상 입력 장치(BlackHole 등)가 여기로 온다.
+    static var clapSilentInput: String {
+        t("👏 마이크가 열렸지만 소리가 전혀 들어오지 않아 박수 반응을 끕니다. 입력 볼륨과 음소거를 확인해주세요.",
+          "👏 The mic opened but no audio is coming in — clap reactions are off. Check the input volume and mute switch.")
+    }
+
+    static var clapPromptTimedOut: String {
+        t("👏 권한 응답이 없어 박수 반응 없이 계속합니다.",
+          "👏 No answer to the permission prompt — continuing without clap reactions.")
+    }
+
+    static var clapDisabled: String {
+        t("   어항은 그대로 돌아갑니다 (--clap 없이 실행한 것과 같습니다).",
+          "   The tank runs normally — exactly as if you hadn't passed --clap.")
+    }
+
     // MARK: - Clap 반응 (박수)
 
     /// 박수 한 번에 문구 한 줄. post()가 4초짜리 단일 슬롯이라 물고기마다 부르면

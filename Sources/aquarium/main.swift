@@ -110,6 +110,15 @@ if let index = arguments.firstIndex(of: "--lounge") {
     loungeMode = true
 }
 
+// --lounge와 같은 이유로 arguments에서 반드시 제거한다 (위 주석 참고).
+// --lounge 없이 단독으로도 쓸 수 있다 — 마이크는 이 플래그가 있을 때만 열리므로
+// 프라이버시 후퇴가 없고, 데스크에서 감지 임계를 튜닝할 수 있어야 한다.
+var clapMode = false
+if let index = arguments.firstIndex(of: "--clap") {
+    arguments.remove(at: index)
+    clapMode = true
+}
+
 // 문서화하지 않는 테스트 훅 — AQUARIUM_LOUNGE_FAST와 같은 성격.
 // 인자·TTY와 무관해야 하므로 서브커맨드 디스패치보다 앞에 둔다.
 if ProcessInfo.processInfo.environment["AQUARIUM_CLAP_SELFTEST"] == "1" {
@@ -173,6 +182,22 @@ if arguments.contains("--version") {
 if let unknown = arguments.first {
     fputs(L10n.unknownOption(unknown) + "\n", stderr)
     exit(1)
+}
+
+// 마이크 권한 창과 안내문은 raw 모드·대체화면 **이전**이어야 한다. 뒤로 가면
+// (a) 전체화면 수조 위로 시스템 다이얼로그가 뜨고, (b) 사람이 읽어야 할 안내가
+// 대체화면에 묻히고, (c) 다이얼로그 대기 중에 죽으면 터미널이 raw 모드로 남는다.
+//
+// 엔진은 여기서만 띄운다 — World.init이나 update()에서 띄우면 Card.swift의
+// 헤드리스 World가 `aquarium --card` 도중에 마이크를 연다.
+let clapListener: ClapListener? = clapMode ? ClapListener() : nil
+if let clapListener, !ClapPermission.bringUp(clapListener) {
+    print(L10n.clapDisabled)
+    // 대체화면이 화면을 덮기 전에 읽을 시간을 준다.
+    if isatty(STDOUT_FILENO) == 1 {
+        fflush(stdout)
+        usleep(2_000_000)
+    }
 }
 
 let term = Terminal.shared
@@ -256,6 +281,16 @@ mainLoop: while true {
         case .click(let col, let row):
             world.touch(col: col, row: row)
         }
+    }
+
+    // 오디오 스레드는 플래그만 세우고 소비는 여기서 한다 — World는 오디오
+    // 스레드에서 절대 건드리지 않는다. updateFish의 `var f = fish[i] … fish[i] = f`
+    // 패턴은 두 번째 스레드가 fish를 만지면 조용히 깨진다.
+    if let clapListener {
+        // 표시자·힌트가 "플래그를 줬다"가 아니라 "마이크가 실제로 소리를 듣고
+        // 있다"를 반영해야 하므로 매 프레임 갱신한다 (isLive는 신호 기반).
+        world.clapLive = clapListener.isLive
+        if clapListener.consumeClap() { world.clap() }
     }
 
     world.update()
