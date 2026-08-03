@@ -83,6 +83,11 @@ struct Fish {
     var name: String = ""
     var bornAtEpoch: Double = 0 // wall-clock epoch
     var panicUntil: Double = 0  // darting away after being touched
+    /// 박수에 반응하는 동안의 systemUptime 데드라인. panicUntil과 완전히 같은
+    /// 방식이고 같은 이유로 저장 걱정이 없다 — FishState에 좌표가 아예 없어서
+    /// 원리적으로 세이브에 샐 수 없다. 성격마다 길이가 다르고, 느긋한 물고기는
+    /// 아예 세워지지 않는다(clapDuration이 0을 준다).
+    var clapUntil: Double = 0
     /// 입양 물고기의 입장 연출 — systemUptime 데드라인.
     /// `now < enteringUntil`이 곧 "아직 어항 밖에서 들어오는 중" 플래그다.
     /// 별도 Bool을 두지 않는 이유: 데드라인이 지나면 updateFish의 하드 스냅이
@@ -267,6 +272,19 @@ final class World {
     private var chestX: Int? // left column of the chest; nil when the tank is too narrow
     private var chestOpenUntil: Double = 0
     private var chestNextOpen: Double = 0
+
+    private var nextClapAt: Double = 0
+    private var clapIndex = 0
+
+    /// --clap이 실제로 **살아 있는지**. "플래그가 붙었다"가 아니라 "마이크가
+    /// 열렸고 실제로 소리가 들어오고 있다"는 뜻이다(ClapListener.isLive).
+    /// 상태줄 표시자와 라운지 힌트가 오직 이 값만 본다 — 권한이 거부된 채로
+    /// 몇 주를 도는 전시가 "박수를 쳐보세요"라고 말하면, 지나가는 사람은 죽은
+    /// 마이크 앞에서 박수를 친다.
+    ///
+    /// init 이후에 결정되므로 var다. main.swift가 매 프레임 갱신한다.
+    /// 세이브에 남기지 않는다 — 전시 맥의 실행 환경이지 어항의 속성이 아니다.
+    var clapLive = false
 
     private var message = ""
     private var messageUntil: Double = 0
@@ -819,6 +837,57 @@ final class World {
         post(L10n.shrimpReleased)
     }
 
+    /// 박수 한 번 = 어항 전체 이벤트. 마이크 감지부는 이 함수 하나만 호출한다.
+    /// World는 AVAudioEngine의 존재를 모른다 — Slack poller가 --adopt만 아는 것과
+    /// 같은 경계다.
+    ///
+    /// **렌더 루프에서만 부른다.** 오디오 스레드에서 부르면 updateFish의
+    /// `var f = fish[i] … fish[i] = f` 패턴이 조용히 깨진다.
+    func clap() {
+        let now = self.now
+
+        // 불응기. 지나가던 사람이 5초에 열 번 치면 어항이 계속 발작하고 post()의
+        // 4초 슬롯이 매번 덮어써진다. 3초로 잡은 건 가장 긴 반응(2.8초)보다 길어서
+        // clapUntil이 겹쳐 쌓이지 않는다는 뜻이기도 하다.
+        //
+        // 감지부가 자기 쪽 쿨다운을 또 걸어도 되지만(실제로 건다), 둘은 서로
+        // 독립이어야 한다 — 두 페이싱을 곱하면 "같은 페이싱이 한쪽에선 연출이고
+        // 다른 쪽에선 먹통"이 된다. P2에서 poller sleep × 코어 페이싱으로 이미
+        // 겪었다.
+        guard now >= nextClapAt else { return }
+        nextClapAt = now + 3
+
+        var reacted = 0
+        for i in fish.indices {
+            // 입장 중엔 못 놀란다. touch()와 같은 이유에 한 겹이 더 있다 —
+            // updateFish의 입장 분기가 clap 분기보다 먼저 continue하므로 지금
+            // 당장은 안 움직이지만, clapUntil은 데드라인이라 0.5초 뒤 입장이
+            // 끝나는 순간 남은 시간이 그대로 발동해 갓 들어온 물고기를 도로
+            // 끌고 간다. 동료가 방금 분양한 물고기다.
+            if now < fish[i].enteringUntil { continue }
+            let d = clapDuration(fish[i].personality)
+            guard d > 0 else { continue }   // 느긋한 물고기는 clapUntil이 안 선다
+            fish[i].clapUntil = now + d
+            reacted += 1
+        }
+
+        // 문구는 박수 한 번에 한 줄이다. post()가 4초짜리 단일 슬롯이라 물고기마다
+        // 부르면 마지막 한 줄만 남는다 — 입양 페이싱에서 같은 함정을 겪었다.
+        // 성격은 문구가 아니라 움직임이 말한다.
+        guard reacted > 0 else { return }   // 느긋한 물고기만 있는 어항
+        post(L10n.clapHeard(clapIndex, night: isNight))
+        clapIndex = (clapIndex + 1) % L10n.clapHeardCount
+
+        // 효과음은 넣지 않는다. 두 가지 독립적인 이유가 있다.
+        // (1) Sound.playTouch()는 afplay로 라운지 스피커에 소리를 쏘는데, 그게
+        //     방금 이 이벤트를 트리거한 마이크와 같은 방이다. Pop.aiff는 더블
+        //     클랩 감지기가 잡도록 만들어진 바로 그 광대역 클릭이고, 0.15초
+        //     디바운스는 에코 캔슬러가 아니다.
+        // (2) 키오스크 가드가 m을 막은 이유가 "종일 소리가 나서"였다. 여기서
+        //     소리를 되살리면 그 결정을 되돌리는 셈이다.
+        // 시각적 대체물은 이미 있다 — playful의 거품.
+    }
+
     /// Handles a mouse click at 0-based grid coordinates.
     func touch(col: Int, row: Int) {
         if rosterOpen || mailboxOpen || sponsorOpen {
@@ -987,6 +1056,13 @@ final class World {
             if now < f.panicUntil {
                 // Touched! Dart away from the finger
                 f.x += f.dir * f.speed * 3.5
+            } else if now < f.clapUntil {
+                // 박수 — 성격대로 화들짝. 손가락(panic)보다 아래, 먹이보다 위다.
+                // 직접 만진 쪽이 우선이고(사람이 바로 앞에 있다), 놀람은 식사를
+                // 중단시킨다(그게 놀람이다). 밤 분기보다 위인 것도 의도다 —
+                // 자던 물고기도 깬다. clapUntil이 끝나면 저절로 밤 드리프트로
+                // 돌아가므로 "화들짝 → 다시 평온"이 분기 우선순위로 구현된다.
+                clapMove(&f)
             } else if let target = nearestPrey(for: f) {
                 let dx = target.x - f.mouthX
                 if abs(dx) > 1 { f.dir = dx > 0 ? 1 : -1 }
@@ -1078,6 +1154,110 @@ final class World {
         case .lazy:    return (12, 1.4, 0.6,  0.004, 0.02, 0.06,  0.005, 1.5)
         case .bold:    return (28, 1.9, 1.15, 0.01,  0.05, 0.10, -0.004, 0.6)
         }
+    }
+
+    /// 박수 반응 지속 시간(초).
+    ///
+    /// traits() 튜플에 컬럼을 붙이지 않은 이유는 둘이다. (1) 8칸짜리 무명 튜플이
+    /// 12칸이 되면 리터럴 행을 눈으로 읽을 수 없다. (2) 계수로 표현되는 게 애초에
+    /// 지속 시간 하나뿐이다 — 나머지는 "가라앉는다 / 솟구친다 / 지그재그 / 무시"라서
+    /// 계수가 아니라 분기다.
+    ///
+    /// 최댓값 2.8초는 post()의 4초 메시지 슬롯보다 짧다. 연출이 끝나기 전에 문구가
+    /// 먼저 사라지는 일이 구조적으로 없다.
+    private func clapDuration(_ p: Personality) -> Double {
+        switch p {
+        case .shy:     return 2.8   // 가장 오래 웅크린다
+        case .greedy:  return 2.2
+        case .playful: return 1.8
+        case .bold:    return 1.0   // 가장 짧고 가장 크게
+        case .lazy:    return 0     // 진짜로 무시한다
+        }
+    }
+
+    /// 박수 반응 — 성격마다 다른 연출. 새 원시동작은 하나도 만들지 않는다.
+    /// dir 뒤집기 / speed 배수 / 비례 제어 vy(먹이 추적과 같은 식) / 거품이 전부다.
+    private func clapMove(_ f: inout Fish) {
+        /// 먹이 추적과 같은 비례 제어. 임펄스 한 방을 주면 0.96 감쇠가 v0의 약
+        /// 24배를 적분해버려서 바닥에 처박히거나 중간에 멎거나 둘 중 하나고, 그
+        /// 사이를 조절할 방법이 없다. 목표 행을 주고 매 틱 다시 계산하면 도착하면서
+        /// 저절로 감속하고 가장자리에서 튕기지 않는다 — 목표에 닿으면 오차 0 →
+        /// vy 0 → 아래 반사가 0을 뒤집는다.
+        func seek(row target: Double) {
+            f.vy = max(-0.3, min(0.3, (target - f.y) * 0.12))
+        }
+        /// 가로 돌진에만 하한을 건다. 입장 연출이 쓰는 것과 같은 값·같은 이유다 —
+        /// 아귀(0.08)·갈치(0.12)가 제 속도로 가면 목표까지 2초 넘게 걸려서
+        /// 도착하는 순간 반응이 끝난다. 웅크린 그림이 안 나온다.
+        let dash = max(f.speed, 0.35)
+
+        switch f.personality {
+        case .shy:
+            // 가장 가까운 수초 곁 모래바닥으로 몸을 낮춘다.
+            //
+            // 「뒤」가 아니라 「곁」이다. 렌더러에 z-order가 없고 drawWeeds가
+            // drawFish보다 먼저 돌기 때문에 수초 열에 있는 물고기는 수초를 가린다.
+            // 게다가 수초는 열 하나짜리(간격 5~11)라 가리는 규칙을 넣어도 몸통에
+            // 한 칸짜리 구멍이 뚫릴 뿐이다. 문구도 「곁」으로 맞춰야 한다.
+            seek(row: Double(swimMaxRow))
+            if let wx = nearestWeedX(to: f.x) {
+                let dx = wx - f.x
+                if abs(dx) > 1 {
+                    f.dir = dx > 0 ? 1 : -1
+                    f.x += f.dir * dash * 2.0
+                }
+                // 도착하면 가로로 멈춘다 — 수초 곁에 웅크린 그림이 된다.
+            }
+
+        case .bold:
+            // "화면 앞으로 돌진"에는 z축이 필요한데 이 렌더러엔 없다. 정직한
+            // 대응물은 "화면에서 가장 눈에 띄는 자리" — 어항 한가운데, 수면 아래다.
+            // art.count의 절반을 빼야 12칸짜리 갈치가 중앙에서 왼쪽으로 밀리지
+            // 않는다 (x는 글리프의 왼쪽 끝이다).
+            seek(row: Double(swimMinRow + 1))
+            let cx = Double(cols) / 2 - Double(f.art.count) / 2
+            let dx = cx - f.x
+            if abs(dx) > 1 { f.dir = dx > 0 ? 1 : -1 }
+            f.x += f.dir * dash * 2.6
+
+        case .playful:
+            // 제자리 지그재그. 0.2면 평균 5틱(0.4초)마다 방향이 바뀌어 1.8초
+            // 동안 네댓 번 꺾인다 — 이동이 아니라 들뜬 몸짓으로 읽힌다.
+            if Double.random(in: 0...1) < 0.2 { f.dir = -f.dir }
+            f.x += f.dir * f.speed * 1.8
+            f.vy = Double.random(in: -0.12...0.12)
+            if Double.random(in: 0...1) < 0.15 {
+                bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
+                                      phase: Double.random(in: 0...(2 * .pi)),
+                                      speed: Double.random(in: 0.2...0.35)))
+            }
+
+        case .greedy:
+            // 박수를 먹이 신호로 잘못 알아듣는다. 알갱이가 실제로 떨어지는
+            // 수면으로 올라가 두리번거린다. 먹이가 이미 떠 있어도 반응 동안은
+            // 그쪽 조준을 버린다 — 그게 농담의 핵심이다. 다만 충돌 판정은 이
+            // 분기 바깥이라 올라가다 부딪힌 건 그대로 먹는다(그것도 성격이다).
+            seek(row: Double(swimMinRow))
+            if Double.random(in: 0...1) < 0.04 { f.dir = -f.dir }
+            f.x += f.dir * f.speed * 1.6
+
+        case .lazy:
+            // 느긋한 물고기는 반응 자체가 없다. clap()이 clapUntil을 세우지 않으니
+            // 여기까지 오지도 않는다. 그래도 분기를 비워 두는 건, 나중에 누군가
+            // "전체 놀람" 이벤트에서 clapUntil을 무조건 세웠을 때 이 성격이
+            // 조용히 빈 분기를 받는 대신 의도가 남아 있게 하려는 것이다.
+            break
+        }
+    }
+
+    /// 가장 가까운 수초의 열. 수초가 없으면 nil (cols ≤ 12이면 하나도 안 심긴다).
+    ///
+    /// 인덱스를 캐시하지 않는 게 요점이다 — plantWeeds()가 resize마다 weeds를
+    /// 통째로 다시 굴려서, 저장해둔 열은 반응 도중에 아무것도 없는 자리를
+    /// 가리키게 된다.
+    private func nearestWeedX(to x: Double) -> Double? {
+        weeds.min(by: { abs(Double($0.x) - x) < abs(Double($1.x) - x) })
+             .map { Double($0.x) }
     }
 
     /// 현재 상황에서 파생되는 기분 (저장 없음) — 터치 반응에 사용
@@ -1588,7 +1768,7 @@ final class World {
         drawBubbles(&grid)
         drawJellyfish(&grid, now)
         if let v = visitor, v.kind != .whale { drawVisitor(&grid) }
-        drawFish(&grid)
+        drawFish(&grid, now)
         drawCleanupCrew(&grid)
         drawInk(&grid)
         return grid
@@ -1782,7 +1962,7 @@ final class World {
         }
     }
 
-    private func drawFish(_ grid: inout [[Cell]]) {
+    private func drawFish(_ grid: inout [[Cell]], _ now: Double) {
         for f in fish {
             let r = Int(f.y.rounded())
             guard r >= swimMinRow, r <= swimMaxRow else { continue }
@@ -1796,8 +1976,16 @@ final class World {
         }
 
         if isNight {
-            // Sleeping fish exhale a little "z" now and then
-            for (i, f) in fish.enumerated() where ((tick / 18) + i) % 7 == 0 {
+            // Sleeping fish exhale a little "z" now and then.
+            //
+            // 놀라서 깬 물고기는 뺀다. 코를 골면서 바닥으로 내리꽂히는 그림은
+            // 문구("자던 물고기들이 깼어요")와 정면으로 어긋난다.
+            //
+            // panicUntil을 같이 넣는 건 의도다 — 밤에 물고기를 만지면
+            // touchedBy가 "자던 X를 깨웠어요!"를 띄우고 세 줄 뒤에 z를 그리는
+            // 기존 불일치가 이미 있었다. 하나만 고치면 더 이상한 상태가 된다.
+            for (i, f) in fish.enumerated()
+            where ((tick / 18) + i) % 7 == 0 && now >= f.clapUntil && now >= f.panicUntil {
                 let r = Int(f.y.rounded()) - 1
                 let c = Int(f.mouthX.rounded())
                 if r >= swimMinRow, c > 0, c < cols - 1, grid[r][c].ch == " " {

@@ -498,6 +498,34 @@ enum L10n {
         return isKorean ? titles[index].ko : titles[index].en
     }
 
+    // MARK: - Clap 반응 (박수)
+
+    /// 박수 한 번에 문구 한 줄. post()가 4초짜리 단일 슬롯이라 물고기마다 부르면
+    /// 마지막 한 줄만 남는다. 성격은 문구가 아니라 움직임이 말한다.
+    /// 인덱스 풀 패턴은 loungeHint·postcardLocation과 동일하다.
+    ///
+    /// 밤을 따로 가르는 이유: 밤엔 자던 물고기가 깨는 그림이라 "놀랐어요"만으로는
+    /// 화면과 안 맞는다. 어느 쪽이든 마지막 절은 "곧 다시 평온"이다 — 힐링 톤은
+    /// 놀람이 아니라 **놀랐다가 가라앉는 것**에 있다.
+    ///
+    /// ⚠️ 「수초 뒤」/"behind" 를 쓰지 않는다. 렌더러에 z-order가 없어서 물고기가
+    /// 수초를 가린다. 위치는 말하되 깊이는 말하지 않는다.
+    static let clapHeardCount = 3
+    static func clapHeard(_ i: Int, night: Bool) -> String {
+        if night {
+            return t("👏 박수 소리에 자던 물고기들이 깼어요 — 금방 다시 잠들 거예요",
+                     "👏 The clap woke the sleeping fish — they'll drift off again")
+        }
+        let ko = ["👏 박수 소리에 물고기들이 화들짝 흩어졌어요",
+                  "👏 어항이 한 번 술렁였어요 — 곧 잠잠해져요",
+                  "👏 물고기마다 놀라는 방법이 다르네요"]
+        let en = ["👏 The fish scatter at the clap",
+                  "👏 A ripple runs through the tank — it settles in a moment",
+                  "👏 Every fish startles in its own way"]
+        let a = isKorean ? ko : en
+        return a[min(max(0, i), a.count - 1)]
+    }
+
     // MARK: - Lounge (전시 모드)
 
     /// QR 아래에 붙는 한 줄. QR이 가리키는 곳은 AQUARIUM_LOUNGE_QR로 바뀌므로

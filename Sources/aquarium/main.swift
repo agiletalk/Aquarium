@@ -204,6 +204,11 @@ func shutdown() -> Never {
 signal(SIGINT) { _ in shutdown() }
 signal(SIGTERM) { _ in shutdown() }
 
+/// 연출 검증용 탈출구 — 마이크 없이 c 키로 world.clap()을 직접 때려 성격별
+/// 반응·불응기·입장 가드를 잴 수 있다. AQUARIUM_LOUNGE_FAST와 같은 성격이라
+/// --help·README에는 싣지 않는다. (c는 현재 아무 데도 안 쓰이는 키다.)
+let clapDebug = ProcessInfo.processInfo.environment["AQUARIUM_CLAP_DEBUG"] != nil
+
 let frameMicroseconds: UInt32 = 80_000 // ~12.5 fps, plenty for a calm tank
 
 mainLoop: while true {
@@ -219,8 +224,10 @@ mainLoop: while true {
             // 상태를 지속적으로 바꾸는 키는 전부 무시한다. q는 되살릴 사람이 없어서,
             // o는 전체화면 위로 브라우저 창을 띄워서, 패널·음악은 켜둔 채 방치되면
             // 전시가 계속 가려지거나 종일 소리가 나서 막는다. 종료는 Ctrl-C(SIGINT).
-            if world.lounge, !"fFgG".contains(key) { break }
+            if world.lounge, !(clapDebug ? "fFgGcC" : "fFgG").contains(key) { break }
             switch key {
+            case "c", "C":
+                if clapDebug { world.clap() }   // env가 없으면 c는 그대로 무반응
             case "f", "F":
                 world.feed()
             case "g", "G":
