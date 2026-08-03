@@ -2075,6 +2075,12 @@ final class World {
             + sep + ANSI.fg(250) + L10n.statusDay(days, timeStr)
             + sep + ANSI.fg(147) + modeLabel
             + (MusicPlayer.shared.isPlaying ? ANSI.fg(219) + " ♪" : "")
+            // 공용 공간에 상시 마이크를 두는 일이라, 문서로만 알리지 않고 화면에
+            // 상시 표시한다. 라운지 힌트는 15초에 한 번만 돌아오지만 이건 항상
+            // 보이고, --lounge 없이 --clap만 쓸 때도 보인다(그쪽엔 힌트가 없다).
+            // ♪와 같은 패턴이되 폭은 다르다 — 👂(U+1F442)는 East Asian Wide라
+            // 확정 2칸이다. 80칸에서 넘치지 않는지 실측했다.
+            + (clapLive ? ANSI.fg(245) + " 👂" : "")
         if let deadline = focusUntil {
             let remain = max(0, Int(deadline - now))
             let clock = String(format: "%d:%02d", remain / 60, remain % 60)
@@ -2085,8 +2091,12 @@ final class World {
         if lounge {
             // 키바인드 목록은 대부분의 키가 막힌 무인 전시에선 무용하다.
             // 15초마다 한 줄씩 돌아가며 지나가는 사람에게 말을 건다.
-            let i = Int((now - startTime) / 15) % L10n.loungeHintCount
-            line += sep + ANSI.fg(245) + L10n.loungeHint(i)
+            // 박수 줄은 clapLive일 때만 풀에 붙는다. clapLive가 기동 몇 프레임
+            // 뒤에 false→true로 바뀌면서 나눗수가 5→6이 되어 인덱스가 한 번
+            // 튄다 — 15초 로테이션에서 눈에 띄지 않고, 나중에 누가 이걸 버그로
+            // 쫓지 않게 여기 적어둔다.
+            let i = Int((now - startTime) / 15) % L10n.loungeHintCount(clap: clapLive)
+            line += sep + ANSI.fg(245) + L10n.loungeHint(i, clap: clapLive)
         } else {
             line += sep + ANSI.fg(245) + L10n.helpLine
         }

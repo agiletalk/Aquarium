@@ -555,9 +555,14 @@ enum L10n {
 
     /// 엔진은 도는데 샘플이 전부 0인 경우. 하드웨어 뮤트, 입력 볼륨 0,
     /// 신호 없는 가상 입력 장치(BlackHole 등)가 여기로 온다.
+    ///
+    /// 이 경우엔 엔진을 그대로 돌려둔다 — 나중에 소리가 들어오면 isLive가 저절로
+    /// true가 되어 박수 반응이 살아난다. 몇 주 무인으로 도는 전시에서 USB 마이크가
+    /// 잠깐 빠졌다 다시 꽂히는 경우를 재시작 없이 넘긴다. 그래서 문구도 "껐다"가
+    /// 아니라 "지금은 안 된다 + 들어오면 켜진다"로 쓴다.
     static var clapSilentInput: String {
-        t("👏 마이크가 열렸지만 소리가 전혀 들어오지 않아 박수 반응을 끕니다. 입력 볼륨과 음소거를 확인해주세요.",
-          "👏 The mic opened but no audio is coming in — clap reactions are off. Check the input volume and mute switch.")
+        t("👏 마이크는 열렸는데 소리가 전혀 들어오지 않습니다. 입력 볼륨과 음소거를 확인해주세요 — 소리가 들어오면 박수 반응이 저절로 켜집니다.",
+          "👏 The mic opened but no audio is coming in. Check the input volume and mute switch — clap reactions turn on by themselves once signal arrives.")
     }
 
     static var clapPromptTimedOut: String {
@@ -565,9 +570,12 @@ enum L10n {
           "👏 No answer to the permission prompt — continuing without clap reactions.")
     }
 
+    /// 실패 경로 공통 꼬리말. 어느 갈래에서도 exit하지 않으므로 "어항은 돈다"가
+    /// 항상 참이다. 상태줄의 👂가 실제 상태를 계속 알려주므로 여기서 영구적인
+    /// 상태를 단정하지 않는다.
     static var clapDisabled: String {
-        t("   어항은 그대로 돌아갑니다 (--clap 없이 실행한 것과 같습니다).",
-          "   The tank runs normally — exactly as if you hadn't passed --clap.")
+        t("   어항은 그대로 돌아갑니다. 마이크가 살아나면 상태줄에 👂 가 뜹니다.",
+          "   The tank runs normally. A 👂 appears in the status bar if the mic comes alive.")
     }
 
     // MARK: - Clap 반응 (박수)
@@ -607,18 +615,31 @@ enum L10n {
     /// 무인 전시의 상태줄 문구. 키바인드 목록(helpLine)은 대부분의 키가 막혀 있어
     /// 무용하므로 이걸로 갈아 끼운다. 인덱스 풀 패턴은 postcardLocation과 동일.
     /// QR 목적지를 특정하는 문구는 넣지 않는다 — 기본값은 사내 채널이 아니다.
-    static let loungeHintCount = 5
-    static func loungeHint(_ i: Int) -> String {
-        let ko = ["f를 누르면 먹이를 줄 수 있어요",
+    /// 박수 줄은 **마이크가 실제로 살아 있을 때만** 붙는다. 플래그를 줬다는 뜻이
+    /// 아니라 오디오 엔진이 돌고 신호가 들어온다는 뜻이다(World.clapLive).
+    /// 권한이 거부된 채 몇 주를 도는 전시가 "박수를 쳐보세요"라고 말하면, 지나가는
+    /// 사람은 죽은 마이크 앞에서 박수를 친다.
+    static func loungeHintCount(clap: Bool) -> Int { clap ? 6 : 5 }
+    static func loungeHint(_ i: Int, clap: Bool = false) -> String {
+        var ko = ["f를 누르면 먹이를 줄 수 있어요",
                   "물고기를 클릭하면 화들짝 놀라요",
                   "QR을 찍어보세요",
                   "이 수조는 터미널에서 돌아갑니다",
                   "아기 물고기는 며칠에 한 마리씩 태어나요"]
-        let en = ["Press f to feed the fish",
+        var en = ["Press f to feed the fish",
                   "Click a fish and watch it startle",
                   "Scan the QR code",
                   "This tank runs in a terminal",
                   "A baby is born every few days"]
+        if clap {
+            // 짧게 유지한다. 상태줄은 자동 줄바꿈이 꺼져 있어(Terminal의 wrapOff)
+            // 넘쳐도 화면이 깨지지 않고 잘리기만 하지만, 잘린 문장은 읽히지 않는다.
+            // 실측 폭(120마리·먹이 20·낮·자동·👂 기준): 이 줄 84칸.
+            // 기존 힌트가 75~99칸이라 그 안에 든다. "물고기마다 다르게 놀란다"는
+            // 뉘앙스는 clapHeard의 세 번째 문구가 이미 전한다.
+            ko.append("박수를 두 번 쳐보세요")
+            en.append("Try clapping twice")
+        }
         let a = isKorean ? ko : en
         return a[min(max(0, i), a.count - 1)]
     }
