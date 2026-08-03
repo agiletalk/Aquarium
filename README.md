@@ -260,4 +260,4 @@ AQUARIUM_LANG=ko aquarium   # or en
 
 ## Support
 
-Aquarium is free and open source, and always will be. If it brings a little calm to your terminal, you can [buy me a coffee on Ko-fi](https://ko-fi.com/agiletalk) — or just press `s` inside the app. It fuels new fish, features, and late-night debugging. ☕
+Aquarium is free and open source, and always will be — released under the [MIT License](LICENSE). If it brings a little calm to your terminal, you can [buy me a coffee on Ko-fi](https://ko-fi.com/agiletalk) — or just press `s` inside the app. It fuels new fish, features, and late-night debugging. ☕
