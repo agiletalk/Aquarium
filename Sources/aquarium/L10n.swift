@@ -249,6 +249,8 @@ enum L10n {
               aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
               aquarium --season <값>  계절 테마 강제 (auto|none|summer)
               aquarium --lounge     전시 모드 (무인 상설 전시용)
+              aquarium --clap       박수 두 번에 물고기가 반응 (마이크 권한 필요)
+                                    --lounge와 함께 쓰면 전시 모드 + 박수
               aquarium --card       어항 명함 PNG 생성 (SNS 공유용)
               aquarium --install-hook  현재 git 레포에 커밋 보상 훅 설치
               aquarium --reward     커밋 보상 적립 (git hook이 호출)
@@ -277,11 +279,16 @@ enum L10n {
               · 설치 QR이 주기적으로 뜨고, f·g·클릭 외의 키는 잠깁니다 (종료는 Ctrl-C)
               · 동료가 Slack에 올린 분양 코드를 자동으로 받아올 수 있습니다
                 (scripts/lounge-slack-poller.sh — 세팅은 docs/lounge-setup.md)
+              · --clap을 함께 주면 박수 두 번에 물고기들이 성격대로 놀랍니다.
+                소리는 크기만 재고 즉시 버립니다 (녹음·저장·전송 없음).
+                마이크가 실제로 열려 있을 때만 상태줄에 👂 가 뜹니다.
 
             환경변수:
               AQUARIUM_LANG=ko|en                     언어 강제 지정
               AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   손님이 자주 옵니다 (이스터에그)
               AQUARIUM_LOUNGE_QR=<주소>               전시 모드 QR이 가리킬 주소
+              AQUARIUM_CLAP_THRESHOLD=<0~1>           박수 감지 임계 (기본 0.018)
+                                                      둔하면 낮추고 오탐이 잦으면 올립니다
             """
             : """
             aquarium — a healing ASCII aquarium in your terminal
@@ -291,6 +298,8 @@ enum L10n {
               aquarium --focus [min] start in pomodoro focus mode (default 25)
               aquarium --season <s>   force the season theme (auto|none|summer)
               aquarium --lounge      exhibition mode (unattended display)
+              aquarium --clap        fish react to a double clap (needs the mic)
+                                     combine with --lounge for exhibition + clap
               aquarium --card        render a shareable PNG tank card
               aquarium --install-hook  install the commit-reward hook in this repo
               aquarium --reward      bank a commit reward (called by the git hook)
@@ -320,11 +329,16 @@ enum L10n {
                 mouse clicks is locked (quit with Ctrl-C)
               · it can pick up gift codes your teammates post in Slack
                 (scripts/lounge-slack-poller.sh — setup: docs/lounge-setup.md)
+              · add --clap and a double clap startles the fish, each in its own way.
+                Only loudness is measured, then discarded (nothing recorded or sent).
+                A 👂 shows in the status bar only while the mic is actually open.
 
             Environment:
               AQUARIUM_LANG=ko|en                     force language
               AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   frequent visitors (easter egg)
               AQUARIUM_LOUNGE_QR=<url>                where the exhibition QR points
+              AQUARIUM_CLAP_THRESHOLD=<0-1>           clap threshold (default 0.018)
+                                                      lower = more sensitive
             """
     }
 
