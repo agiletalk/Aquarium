@@ -110,6 +110,12 @@ if let index = arguments.firstIndex(of: "--lounge") {
     loungeMode = true
 }
 
+// 문서화하지 않는 테스트 훅 — AQUARIUM_LOUNGE_FAST와 같은 성격.
+// 인자·TTY와 무관해야 하므로 서브커맨드 디스패치보다 앞에 둔다.
+if ProcessInfo.processInfo.environment["AQUARIUM_CLAP_SELFTEST"] == "1" {
+    exit(ClapSelfTest.run() ? 0 : 1)
+}
+
 if arguments.contains("--status") {
     printStatus()
     exit(0)
