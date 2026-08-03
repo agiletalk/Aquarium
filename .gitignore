@@ -1,3 +1,8 @@
 .build/
 .swiftpm/
 .DS_Store
+
+# HANDOFF 문서는 내부 설계·인수인계용이라 공개하지 않는다.
+# 공개 레포이므로 추적되는 순간 그대로 배포된다.
+docs/HANDOFF-*.md
+HANDOFF-*.md
