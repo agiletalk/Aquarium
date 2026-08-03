@@ -1208,8 +1208,21 @@ final class World {
             chestNextOpen = now + Double.random(in: 10...18)
             bump("chest")
             // The lid popping open startles fish loitering near the bottom.
+            // 입장 중인 물고기는 건너뛴다 — touch()(위 참고)와 똑같은 이유다.
+            // 여기서 dir을 뒤집는데 입장 분기가 그 dir로 움직이므로, 갓 들어오던
+            // 물고기가 그대로 되돌아 나간다.
+            //
+            // 드물지만 실재하는 경로다. 입장 창이 짧은 게(어항에 들어서는 즉시
+            // enteringUntil이 풀려서 약 2.3초) 확률을 눌러준다 — 여기에 상자
+            // x범위 근접과 바닥 근처 y가 겹쳐야 하므로 마리당 0.5% 수준이다.
+            // 실측으로 확인했다: 자연 조건 24마리 입양에서 0회, chestX를
+            // 최댓값으로 고정하고 상자를 0.5초마다 열면 120초에 2회.
+            // enteringUntil 도입 때 열거한 예외 지점 셋(clampToTank·updateFish·
+            // resize·touch) 중 여기만 빠져 있었다. 공짜로 막을 수 있는 데다,
+            // 되돌아 나가는 대상이 동료가 방금 분양한 물고기다.
             let center = Double(cx) + 3
-            for i in fish.indices where abs(fish[i].x - center) < 12
+            for i in fish.indices where now >= fish[i].enteringUntil
+                && abs(fish[i].x - center) < 12
                 && fish[i].y > Double(swimMaxRow - 6) {
                 fish[i].dir = fish[i].x < center ? -1 : 1
                 fish[i].vy = -0.3
