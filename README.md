@@ -111,6 +111,24 @@ everything else is locked so nobody can quit the tank, open a browser window
 over it, or leave a panel covering the display. Quit it yourself with `Ctrl-C`
 — it saves on the way out, and autosaves every minute regardless.
 
+**It answers a double clap** (`--clap`). Clap twice near the display and the
+tank startles, each fish in its own way — the shy one drops to the sand beside
+the weeds, the bold one dashes to the middle of the tank and up under the
+surface, the playful one zigzags in a flurry of bubbles, the greedy one races to
+where the pellets land — and the lazy one carries on as if nothing happened.
+A second or three later everyone is calm again. A single clap is ignored, and so is everything
+after the first for three seconds. It's off by default, because it needs the
+microphone. It works with or without `--lounge`.
+
+**Nothing is recorded.** The audio buffer is measured for loudness and discarded
+on the spot — nothing is written to disk, nothing leaves the machine, and there
+is no speech, no recognition and no network of any kind. Leave the flag off and
+the microphone is never opened. A 👂 sits in the status bar whenever the mic is
+actually open, so anyone walking past can see it. macOS will ask for microphone
+access under the *terminal app's* name rather than aquarium's, because a
+command-line binary has no bundle of its own — and that grant is per terminal
+app. Setup checklist (Korean): [`docs/lounge-setup.md`](docs/lounge-setup.md) §7.
+
 ## A tank the whole team stocks (Slack)
 
 A lounge tank is more fun when it isn't yours. `scripts/lounge-slack-poller.sh`
