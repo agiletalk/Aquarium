@@ -1,3 +1,4 @@
+import AquariumCore
 import Foundation
 
 let appVersion = "3.1.0"
@@ -209,8 +210,10 @@ let terminalDark = term.backgroundIsDark()
 
 let initialSize = term.size
 let world = World(cols: initialSize.cols, rows: initialSize.rows,
-                  terminalDark: terminalDark, restoring: SaveStore.load(),
-                  lounge: loungeMode)
+                  config: .terminal(environment: ProcessInfo.processInfo.environment,
+                                    lounge: loungeMode, terminalDark: terminalDark),
+                  restoring: SaveStore.load(),
+                  effects: TerminalEffects())
 if let focusMinutes {
     world.startFocus(minutes: focusMinutes)
 }

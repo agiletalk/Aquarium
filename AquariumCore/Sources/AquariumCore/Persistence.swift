@@ -1,50 +1,50 @@
 import Foundation
 
-struct FishState: Codable {
-    var species: Int
-    var color: UInt8
-    var speed: Double
-    var eaten: Int
-    var growRemaining: Double? // nil = adult
-    var name: String?          // optional: v1.2 saves have no names
-    var bornAt: Double?        // wall-clock epoch
-    var id: String?            // 분양용 고유 id
-    var origin: [String]?      // 거쳐온 어항들 (여권)
-    var morph: Int?            // 희귀 변종 (nil/0 = normal)
-    var personality: Int?      // 영구 기질 (nil = 구 세이브 → 로드 시 랜덤 배정)
+public struct FishState: Codable {
+    public var species: Int
+    public var color: UInt8
+    public var speed: Double
+    public var eaten: Int
+    public var growRemaining: Double? // nil = adult
+    public var name: String?          // optional: v1.2 saves have no names
+    public var bornAt: Double?        // wall-clock epoch
+    public var id: String?            // 분양용 고유 id
+    public var origin: [String]?      // 거쳐온 어항들 (여권)
+    public var morph: Int?            // 희귀 변종 (nil/0 = normal)
+    public var personality: Int?      // 영구 기질 (nil = 구 세이브 → 로드 시 랜덤 배정)
 }
 
-struct SaveState: Codable {
-    var version: Int = 1
-    var savedAt: Double      // wall-clock epoch, for offline-time calculation
-    var tankBornAt: Double   // wall-clock epoch
-    var breedRemaining: Double
-    var lighting: String
-    var fish: [FishState]
-    var visitorSeen: [String: Int]? // 도감 손님 기록
-    var focusDone: Int?             // 완료한 뽀모도로 세션 수
-    var tankFull: Bool?             // 저장 시점에 정원이 찼는지 (--status 표시용)
-    var commitRewards: Int?         // 커밋 보상 누적 횟수
-    var stats: [String: Int]?       // 업적 판정용 카운터
-    var unlockedAchievements: [String]? // 획득한 업적 id
-    var travelers: [Traveler]?      // 여행 떠난 물고기들 (엽서를 보냄)
-    var mailbox: [Postcard]?        // 받은 엽서
-    var season: String?             // 계절 테마 (nil = 구 세이브 → auto)
+public struct SaveState: Codable {
+    public var version: Int = 1
+    public var savedAt: Double      // wall-clock epoch, for offline-time calculation
+    public var tankBornAt: Double   // wall-clock epoch
+    public var breedRemaining: Double
+    public var lighting: String
+    public var fish: [FishState]
+    public var visitorSeen: [String: Int]? // 도감 손님 기록
+    public var focusDone: Int?             // 완료한 뽀모도로 세션 수
+    public var tankFull: Bool?             // 저장 시점에 정원이 찼는지 (--status 표시용)
+    public var commitRewards: Int?         // 커밋 보상 누적 횟수
+    public var stats: [String: Int]?       // 업적 판정용 카운터
+    public var unlockedAchievements: [String]? // 획득한 업적 id
+    public var travelers: [Traveler]?      // 여행 떠난 물고기들 (엽서를 보냄)
+    public var mailbox: [Postcard]?        // 받은 엽서
+    public var season: String?             // 계절 테마 (nil = 구 세이브 → auto)
 }
 
-struct Traveler: Codable {
-    var name: String
-    var departedAt: Double      // epoch
-    var nextPostcardAt: Double  // epoch
-    var sent: Int
+public struct Traveler: Codable {
+    public var name: String
+    public var departedAt: Double      // epoch
+    public var nextPostcardAt: Double  // epoch
+    public var sent: Int
 }
 
-struct Postcard: Codable {
-    var from: String
-    var location: Int   // L10n 풀 인덱스 (언어 전환 대응)
-    var message: Int
-    var at: Double      // 받은 시각 epoch
-    var read: Bool
+public struct Postcard: Codable {
+    public var from: String
+    public var location: Int   // L10n 풀 인덱스 (언어 전환 대응)
+    public var message: Int
+    public var at: Double      // 받은 시각 epoch
+    public var read: Bool
 }
 
 /// flock(2) 기반 프로세스 간 배타 락.
@@ -58,11 +58,11 @@ struct Postcard: Codable {
 /// 전부 LOCK_NB다. 어항은 12.5fps 렌더 루프 안에서 큐를 훑는데 여기서
 /// 블로킹되면 화면이 그대로 멈춘다. 못 잡으면 실패하고 다음 점검에서 다시
 /// 온다 — 데이터는 파일에 남아 있으니 잃는 게 없다.
-enum FileLock {
+public enum FileLock {
     /// - Parameter retries: 50ms 간격 재시도 횟수. 잠깐 기다려도 되는
     ///   CLI만 쓴다(어항은 0).
     /// - Returns: 락을 못 잡으면 nil. `body`가 아예 실행되지 않았다는 뜻이다.
-    static func withLock<T>(_ url: URL, retries: Int = 0, _ body: () -> T) -> T? {
+    public static func withLock<T>(_ url: URL, retries: Int = 0, _ body: () -> T) -> T? {
         let fd = open(url.path + ".lock", O_RDWR | O_CREAT, 0o644)
         // 락 파일조차 못 열면(읽기 전용 HOME 등) 락 없이 진행한다 — 지금까지의
         // 동작 그대로다. 락을 못 만든다고 선물을 버릴 이유는 없다.
@@ -80,27 +80,31 @@ enum FileLock {
     }
 }
 
-enum SaveStore {
-    static var fileURL: URL {
+public enum SaveStore {
+    public static var fileURL: URL {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium.json")
     }
 
-    static func load() -> SaveState? {
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+    public static func load() -> SaveState? { load(from: fileURL) }
+
+    public static func write(_ state: SaveState) { write(state, to: fileURL) }
+
+    public static func load(from url: URL) -> SaveState? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
         return try? JSONDecoder().decode(SaveState.self, from: data)
     }
 
-    static func write(_ state: SaveState) {
+    public static func write(_ state: SaveState, to url: URL) {
         guard let data = try? JSONEncoder().encode(state) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        try? data.write(to: url, options: .atomic)
     }
 }
 
 /// git post-commit 훅이 적립하는 보상 인박스.
 /// 실행 중인 앱과의 저장 파일 쓰기 충돌을 피하려고 별도 파일을 쓴다.
-enum RewardInbox {
-    static var fileURL: URL {
+public enum RewardInbox {
+    public static var fileURL: URL {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-inbox")
     }
@@ -108,7 +112,7 @@ enum RewardInbox {
     /// 커밋 훅이 부른다. 락을 끝내 못 잡으면 락 없이 진행한다 — 호출자가
     /// 실패로 할 수 있는 일이 없고(훅은 커밋을 되돌리지 않는다), 유실돼도
     /// 먹이 몇 알이다. 선물과 달리 되돌릴 수 없는 손실이 아니다.
-    static func deposit() -> Int {
+    public static func deposit() -> Int {
         FileLock.withLock(fileURL, retries: 10, depositLocked) ?? depositLocked()
     }
 
@@ -118,12 +122,12 @@ enum RewardInbox {
         return next
     }
 
-    static func pending() -> Int {
+    public static func pending() -> Int {
         guard let text = try? String(contentsOf: fileURL, encoding: .utf8) else { return 0 }
         return Int(text.trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
     }
 
-    static func consume() -> Int {
+    public static func consume() -> Int {
         // 어항 쪽 — 못 잡으면 이번 점검은 건너뛴다. 숫자는 파일에 남아 있다.
         FileLock.withLock(fileURL) {
             let count = pending()
@@ -134,8 +138,8 @@ enum RewardInbox {
 }
 
 /// 입양 인박스: `aquarium --adopt <코드>`가 넣고, 실행 중인 앱이 물고기로 되살린다.
-enum AdoptInbox {
-    static var fileURL: URL {
+public enum AdoptInbox {
+    public static var fileURL: URL {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-adopt-inbox")
     }
@@ -150,7 +154,7 @@ enum AdoptInbox {
     /// 있기 때문이다 — 알릴 수 있는 곳에서는 알리고, 아무도 손쓸 수 없는
     /// 곳에서만 조용히 물러난다.
     @discardableResult
-    static func deposit(_ token: String) -> Bool {
+    public static func deposit(_ token: String) -> Bool {
         FileLock.withLock(fileURL, retries: 10) {
             var lines = drainPeek()
             lines.append(token)
@@ -176,7 +180,7 @@ enum AdoptInbox {
     /// 강제종료돼도 남은 물고기가 다음 실행 때 그대로 들어온다.
     ///
     /// 어항 쪽이라 재시도하지 않는다. 못 잡으면 이번 점검은 건너뛴다.
-    static func takeFirst() -> String? {
+    public static func takeFirst() -> String? {
         let result: String?? = FileLock.withLock(fileURL) { () -> String? in
             var lines = drainPeek()
             guard !lines.isEmpty else { return nil }
@@ -196,15 +200,15 @@ enum AdoptInbox {
 }
 
 /// 분양 아웃박스: `aquarium --release <이름>`이 떠나보낼 물고기 이름을 넣고, 앱이 어항에서 제거한다.
-enum ReleaseOutbox {
-    static var fileURL: URL {
+public enum ReleaseOutbox {
+    public static var fileURL: URL {
         let home = ProcessInfo.processInfo.environment["HOME"] ?? NSHomeDirectory()
         return URL(fileURLWithPath: home).appendingPathComponent(".aquarium-release-outbox")
     }
 
     /// 락을 끝내 못 잡으면 락 없이 강행한다 — 호출자(`--release`)가 이미
     /// 코드를 출력하기 직전이라 실패로 할 수 있는 일이 없다.
-    static func request(_ name: String) {
+    public static func request(_ name: String) {
         let write = {
             var lines = peek()
             lines.append(name)
@@ -218,7 +222,7 @@ enum ReleaseOutbox {
         return text.split(separator: "\n").map(String.init)
     }
 
-    static func drain() -> [String] {
+    public static func drain() -> [String] {
         // 어항 쪽 — 못 잡으면 이번 점검은 건너뛴다. 이름은 파일에 남아 있다.
         FileLock.withLock(fileURL) {
             let lines = peek()

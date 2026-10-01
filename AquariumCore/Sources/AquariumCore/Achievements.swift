@@ -1,21 +1,21 @@
 import Foundation
 
-struct Achievement {
-    let id: String
-    let icon: String
-    let stat: String
-    let threshold: Int
-    let ko: String
-    let en: String
-    let koDesc: String
-    let enDesc: String
+public struct Achievement {
+    public let id: String
+    public let icon: String
+    public let stat: String
+    public let threshold: Int
+    public let ko: String
+    public let en: String
+    public let koDesc: String
+    public let enDesc: String
 
-    var name: String { L10n.isKorean ? ko : en }
-    var desc: String { L10n.isKorean ? koDesc : enDesc }
+    public var name: String { L10n.isKorean ? ko : en }
+    public var desc: String { L10n.isKorean ? koDesc : enDesc }
 }
 
-enum Achievements {
-    static let all: [Achievement] = [
+public enum Achievements {
+    public static let all: [Achievement] = [
     Achievement(id: "born_1", icon: "🐣", stat: "born", threshold: 1, ko: "첫 탄생", en: "First Born", koDesc: "아기 1마리 탄생", enDesc: "1 babies born"),
     Achievement(id: "born_5", icon: "🐣", stat: "born", threshold: 5, ko: "유치원", en: "Nursery", koDesc: "아기 5마리 탄생", enDesc: "5 babies born"),
     Achievement(id: "born_10", icon: "🐣", stat: "born", threshold: 10, ko: "대가족", en: "Big Family", koDesc: "아기 10마리 탄생", enDesc: "10 babies born"),
@@ -127,7 +127,7 @@ enum Achievements {
     ]
 
     /// 저장 상태에서 업적 판정용 통계를 계산한다 (카운터 + 파생값 병합).
-    static func mergedStats(from save: SaveState) -> [String: Int] {
+    public static func mergedStats(from save: SaveState) -> [String: Int] {
         var m = save.stats ?? [:]
         m["fish"] = save.fish.count
         m["maxFish"] = max(m["maxFish"] ?? 0, save.fish.count)
@@ -151,28 +151,7 @@ enum Achievements {
         return m
     }
 
-    static func isUnlocked(_ a: Achievement, stats: [String: Int]) -> Bool {
+    public static func isUnlocked(_ a: Achievement, stats: [String: Int]) -> Bool {
         (stats[a.stat] ?? 0) >= a.threshold
-    }
-
-    /// CLI: `aquarium --achievements`
-    static func printAll() {
-        guard let save = SaveStore.load(), !save.fish.isEmpty else {
-            print(L10n.statusNoTank)
-            return
-        }
-        let stats = mergedStats(from: save)
-        let unlocked = all.filter { isUnlocked($0, stats: stats) }.count
-        print(ANSI.fg(226) + L10n.achievementsHeader(unlocked, all.count) + ANSI.reset)
-        print("")
-        for a in all {
-            if isUnlocked(a, stats: stats) {
-                print(ANSI.fg(84) + "  \u{2714} \(a.icon) \(a.name)"
-                      + ANSI.fg(244) + "  — \(a.desc)" + ANSI.reset)
-            } else {
-                let have = stats[a.stat] ?? 0
-                print(ANSI.fg(240) + "  \u{00B7} \(a.icon) \(a.name)  (\(have)/\(a.threshold))" + ANSI.reset)
-            }
-        }
     }
 }

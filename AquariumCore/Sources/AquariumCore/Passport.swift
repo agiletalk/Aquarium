@@ -2,18 +2,18 @@ import Foundation
 
 /// 물고기 분양/입양: 물고기 한 마리를 base64url 코드로 직렬화해 사람 손(Slack 등)으로 주고받는다.
 /// 서버 없이, 코드 문자열 하나가 물고기의 전부다.
-enum Passport {
-    static let prefix = "AQUA1."
+public enum Passport {
+    public static let prefix = "AQUA1."
 
     /// 현재 어항 주인 이름 (여권 도장용)
-    static func tankName() -> String {
+    public static func tankName() -> String {
         let env = ProcessInfo.processInfo.environment
         if let name = env["AQUARIUM_TANKNAME"], !name.isEmpty { return name }
         if let user = env["USER"], !user.isEmpty { return user }
         return L10n.isKorean ? "어떤" : "someone"
     }
 
-    static func encode(_ fish: FishState) -> String? {
+    public static func encode(_ fish: FishState) -> String? {
         guard let data = try? JSONEncoder().encode(fish) else { return nil }
         let b64 = data.base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
@@ -22,7 +22,7 @@ enum Passport {
         return prefix + b64
     }
 
-    static func decode(_ code: String) -> FishState? {
+    public static func decode(_ code: String) -> FishState? {
         let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix(prefix) else { return nil }
         var b64 = String(trimmed.dropFirst(prefix.count))
@@ -90,51 +90,5 @@ enum Passport {
         }
         let cleaned = String(String(scalars).prefix(max))
         return cleaned.isEmpty ? nil : cleaned
-    }
-
-    // MARK: - CLI
-
-    /// `aquarium --release <이름>`
-    static func release(name: String) {
-        guard let save = SaveStore.load(), !save.fish.isEmpty else {
-            print(L10n.statusNoTank)
-            return
-        }
-        let query = name.lowercased()
-        guard var fish = save.fish.first(where: { ($0.name ?? "").lowercased() == query }) else {
-            print(L10n.releaseNotFound(name))
-            exit(1)
-        }
-        if fish.id == nil { fish.id = UUID().uuidString }
-        var origin = fish.origin ?? []
-        origin.append(tankName())
-        fish.origin = origin
-
-        guard let token = encode(fish) else {
-            print(L10n.releaseFailed)
-            exit(1)
-        }
-        // 어항이 실제로 떠나보내는 건 실행 중인 앱(또는 다음 실행)에 맡긴다 — 저장 충돌 방지
-        ReleaseOutbox.request(fish.name ?? "")
-        print(L10n.releasedCLI(fish.name ?? "?"))
-        print("")
-        print(token)
-    }
-
-    /// `aquarium --adopt <코드>`
-    static func adopt(code: String) {
-        guard let fish = decode(code) else {
-            print(L10n.adoptInvalid)
-            exit(1)
-        }
-        let token = prefix + String(code.trimmingCharacters(in: .whitespacesAndNewlines).dropFirst(prefix.count))
-        guard AdoptInbox.deposit(token) else {
-            // 코드는 멀쩡한데 큐에 못 넣었다. exit 1(= 잘못된 코드)을 쓰면
-            // 자동화(Slack poller 등)가 ⚠️를 붙이고 영영 끝내버린다 — 이건
-            // 재시도해야 하는 실패다. 75는 sysexits.h의 EX_TEMPFAIL.
-            print(L10n.adoptQueueFailed)
-            exit(75)
-        }
-        print(L10n.adoptQueued(fish.name ?? "?"))
     }
 }

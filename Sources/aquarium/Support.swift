@@ -1,3 +1,4 @@
+import AquariumCore
 import Foundation
 
 /// 후원 링크 설정 + `aquarium --sponsor` CLI.

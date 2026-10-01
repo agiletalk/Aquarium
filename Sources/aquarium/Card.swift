@@ -1,4 +1,5 @@
 import AppKit
+import AquariumCore
 import Foundation
 
 /// `aquarium --card`: 저장된 어항을 SNS 공유용 PNG 명함으로 렌더링한다.
@@ -10,8 +11,10 @@ enum Card {
         }
 
         // 카드용 미니 어항: 실제 저장 데이터를 복원하되 저장 파일은 건드리지 않는다
-        let world = World(cols: 64, rows: 20, terminalDark: false,
-                          restoring: save, ephemeral: true)
+        let world = World(cols: 64, rows: 20,
+                          config: .terminal(environment: ProcessInfo.processInfo.environment,
+                                            lounge: false, terminalDark: false, ephemeral: true),
+                          restoring: save, effects: TerminalEffects())
         world.setLighting(.day)
         world.setSeason(.off)
         for _ in 0..<50 { world.update() } // 물고기·공기방울이 자연스럽게 퍼지도록
