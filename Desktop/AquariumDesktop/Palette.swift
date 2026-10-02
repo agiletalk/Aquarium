@@ -65,13 +65,51 @@ enum Palette {
             let k = cap / luma
             return (r * k, g * k, b * k)
         case .crt:
-            // 바닥 밝기를 둬서 어두운 색(밤 감광 포함)도 검정에 묻히지 않게 한다.
-            let l = 0.22 + 0.78 * luma
-            return (0.18 * l, l, 0.28 * l)
+            // 색조 140°±55°(노란 연두 ~ 녹색 ~ 청록) 안에 원래 색조를 눌러 담는다 — 단색이면
+            // 밝기가 비슷한 물고기끼리 구분이 안 됐다. 무채색은 녹색 단색 그대로.
+            return phosphor(r, g, b, luma: luma, center: 140, spread: 55,
+                            mono: { l in (0.18 * l, l, 0.28 * l) })
         case .amber:
-            let l = 0.22 + 0.78 * luma
-            return (l, 0.64 * l, 0.12 * l)
+            // 색조 35°±28°(붉은 주황 ~ 호박 ~ 노랑).
+            return phosphor(r, g, b, luma: luma, center: 35, spread: 28,
+                            mono: { l in (l, 0.64 * l, 0.12 * l) })
         }
+    }
+
+    /// 형광관 테마 — 무채색은 단색 밝기 단계, 유채색은 색조를 [center-spread, center+spread]로
+    /// 옮긴다. 원래 색조 순서(빨강→노랑→초록→파랑→보라)가 범위 안에서 그대로 유지된다.
+    private static func phosphor(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, luma: CGFloat,
+                                 center: CGFloat, spread: CGFloat,
+                                 mono: (CGFloat) -> (CGFloat, CGFloat, CGFloat)) -> (CGFloat, CGFloat, CGFloat) {
+        // 바닥 밝기를 둬서 어두운 색(밤 감광 포함)도 검정에 묻히지 않게 한다.
+        let level = 0.22 + 0.78 * luma
+        let maxC = max(r, g, b), minC = min(r, g, b)
+        let saturation = maxC > 0 ? (maxC - minC) / maxC : 0
+        guard saturation > 0.2 else { return mono(level) }
+        var hue: CGFloat
+        if maxC == r { hue = (g - b) / (maxC - minC) }
+        else if maxC == g { hue = 2 + (b - r) / (maxC - minC) }
+        else { hue = 4 + (r - g) / (maxC - minC) }
+        hue = (hue * 60).truncatingRemainder(dividingBy: 360)
+        if hue < 0 { hue += 360 }
+        let mapped = center - spread + hue / 360 * spread * 2
+        // 밝기는 원래 밝기 단계를 따르되 유채색은 조금 더 밝게 — 형광 느낌.
+        return hsv(mapped, 0.78, min(1, 0.35 + 0.75 * maxC))
+    }
+
+    private static func hsv(_ h: CGFloat, _ s: CGFloat, _ v: CGFloat) -> (CGFloat, CGFloat, CGFloat) {
+        let c = v * s, hp = (h / 60).truncatingRemainder(dividingBy: 6)
+        let x = c * (1 - abs(hp.truncatingRemainder(dividingBy: 2) - 1)), m = v - c
+        let (r, g, b): (CGFloat, CGFloat, CGFloat)
+        switch hp {
+        case ..<1: (r, g, b) = (c, x, 0)
+        case ..<2: (r, g, b) = (x, c, 0)
+        case ..<3: (r, g, b) = (0, c, x)
+        case ..<4: (r, g, b) = (0, x, c)
+        case ..<5: (r, g, b) = (x, 0, c)
+        default: (r, g, b) = (c, 0, x)
+        }
+        return (r + m, g + m, b + m)
     }
 
     /// xterm 256색 — `aquarium --card`(Card.rgb)와 같은 공식.
