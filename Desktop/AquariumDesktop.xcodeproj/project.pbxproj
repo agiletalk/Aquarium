@@ -254,7 +254,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.wantedlab.AquariumDesktop; /* 사내 스토어 배포용 — 값 확인 대기 */
+				PRODUCT_BUNDLE_IDENTIFIER = com.wantedlab.AquariumDesktop; /* 사내 스토어 배포용 */
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
