@@ -58,6 +58,7 @@ final class WallpaperController: ObservableObject {
     deinit {
         timer?.invalidate()
         if let observer { NotificationCenter.default.removeObserver(observer) }
+        for (center, token) in powerObservers { center.removeObserver(token) }
     }
 
     /// 앱이 뜬 뒤 한 번. 터미널 어항 가져오기를 먼저 물어봐야 해서 init과 나눴다.
@@ -69,6 +70,7 @@ final class WallpaperController: ObservableObject {
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in self?.rebuild() }
+        observePower()
         if enabled { show() }
     }
 
@@ -111,9 +113,9 @@ final class WallpaperController: ObservableObject {
         guard started else { return }
         rebuild()
         guard timer == nil else { return }
-        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in self?.tick() }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        rendering = true
+        schedule(interval: Self.tickInterval)
+        updateRendering()
     }
 
     private func hide() {
@@ -127,7 +129,68 @@ final class WallpaperController: ObservableObject {
 
     private func tick() {
         world?.update()
-        view?.refresh()
+        if rendering { view?.refresh() }
+        // 가려짐은 1초에 한 번만 본다 — 창 목록 조회가 tick마다 돌 이유는 없다.
+        ticksSinceCheck += 1
+        if ticksSinceCheck >= Int((1 / currentInterval).rounded()) {
+            ticksSinceCheck = 0
+            updateRendering()
+        }
+    }
+
+    // MARK: - 배터리 절약
+
+    /// 보이지 않을 때 시뮬레이션은 1초 간격으로만 굴린다 — 자동 저장·자동 먹이·번식
+    /// 타이머(전부 systemUptime 기준)는 그대로 돌고, 헤엄은 보는 사람이 없다.
+    static let idleInterval: TimeInterval = 1
+
+    /// 지금 그리고 있는지. 가려짐·잠금·디스플레이 잠자기 중 하나면 false.
+    private(set) var rendering = true
+    private var screenLocked = false
+    private var displaysAsleep = false
+    private var ticksSinceCheck = 0
+    private var currentInterval: TimeInterval = WallpaperController.tickInterval
+    private var powerObservers: [(NotificationCenter, NSObjectProtocol)] = []
+
+    private func observePower() {
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        func on(_ center: NotificationCenter, _ name: Notification.Name, _ body: @escaping (WallpaperController) -> Void) {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                body(self)
+                self.updateRendering()
+            }
+            powerObservers.append((center, token))
+        }
+        on(workspace, NSWorkspace.screensDidSleepNotification) { $0.displaysAsleep = true }
+        on(workspace, NSWorkspace.screensDidWakeNotification) { $0.displaysAsleep = false }
+        on(workspace, NSWorkspace.sessionDidResignActiveNotification) { $0.screenLocked = true }
+        on(workspace, NSWorkspace.sessionDidBecomeActiveNotification) { $0.screenLocked = false }
+        on(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.screenLocked = true }
+        on(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.screenLocked = false }
+    }
+
+    /// 바탕화면 레벨 창은 NSWindow.occlusionState가 다른 앱 창에 100% 덮여도 .visible로
+    /// 남는다(스파이크 실측). 그래서 창 목록으로 그리드가 얼마나 덮였는지 직접 본다.
+    private func updateRendering() {
+        guard let window, let view else { return }
+        let grid = window.convertToScreen(view.convert(view.bounds, to: nil))
+        let covered = DesktopCoverage.fraction(of: grid, excludingPID: getpid()) >= 0.98
+        let shouldRender = !covered && !screenLocked && !displaysAsleep
+        guard shouldRender != rendering else { return }
+        rendering = shouldRender
+        if rendering { view.refresh() }
+        schedule(interval: rendering ? Self.tickInterval : Self.idleInterval)
+    }
+
+    private func schedule(interval: TimeInterval) {
+        timer?.invalidate()
+        currentInterval = interval
+        ticksSinceCheck = 0
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     /// 모니터 연결·해제·해상도 변경·선택 변경 때마다 창을 새로 만들고, 어항은
