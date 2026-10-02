@@ -152,8 +152,13 @@ final class WallpaperController: ObservableObject {
     private func tick() {
         ticks += 1
         if rendering {
+            let t0 = Probe.now()
             world?.update()
+            Probe.add("update", since: t0)
+            let t1 = Probe.now()
             view?.refresh()
+            Probe.add("refresh(total)", since: t1)
+            Probe.frame()
             // 보이는 동안은 가려졌는지 1초에 한 번만 본다 — 멈추는 건 조금 늦어도 된다.
             // 메뉴 상태(집중 완료 등 어항이 스스로 바꾸는 값)도 그때 맞춘다.
             if ticks % Self.ticksPerSecond == 0 {
@@ -211,7 +216,8 @@ final class WallpaperController: ObservableObject {
     private func updateRendering() {
         guard let window, let view else { return }
         let grid = window.convertToScreen(view.convert(view.bounds, to: nil))
-        let covered = DesktopCoverage.fraction(of: grid, excludingPID: getpid()) >= 0.98
+        // Probe 중에는 가려져도 계속 그린다 — 렌더 비용은 보이든 말든 같다.
+        let covered = !Probe.enabled && DesktopCoverage.fraction(of: grid, excludingPID: getpid()) >= 0.98
         let shouldRender = !covered && !screenLocked && !displaysAsleep
         guard shouldRender != rendering else { return }
         rendering = shouldRender
@@ -236,7 +242,8 @@ final class WallpaperController: ObservableObject {
         guard let screen = Self.pick(from: screens, preferred: selectedDisplayID) else { return }
 
         let visible = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
-        let view = TankView(visibleRect: visible, metrics: CellMetrics(pointSize: Self.fontSize(for: screen)))
+        let view = TankView(visibleRect: visible,
+                            metrics: CellMetrics(pointSize: Self.fontSize(for: screen), scale: screen.backingScaleFactor))
         if let world {
             if world.cols != view.cols || world.rows != view.rows {
                 world.resize(cols: view.cols, rows: view.rows)

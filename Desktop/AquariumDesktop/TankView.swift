@@ -15,8 +15,12 @@ import IOSurface
 /// - 행 × 16칸 타일 레이어 1,000여 개: 5.1%. 프레임당 바뀌는 셀은 평균 133개인데
 ///   타일 단위로 약 1,000칸을 칠하고, 레이어 수만큼 커밋 비용이 든다.
 /// - 그래서 IOSurface 두 장에 직접 그리고 번갈아 레이어 contents로 건넨다. 바뀐 셀만
-///   칠하고, CA에는 레이어 하나만 넘어간다. 뒤 버퍼는 두 프레임 전 상태라 직전
-///   프레임에 바뀐 셀까지 함께 칠한다.
+///   칠하고, CA에는 레이어 하나만 넘어간다: 3.8~4.2%.
+/// - 계측해 보니 그중 절반이 배경 지우기였고, 비용은 쓰는 바이트가 아니라 WindowServer가
+///   합성한 버퍼의 페이지에 **처음 닿는 횟수**에 비례했다(같은 영역 두 번째 지우기는 6.6배
+///   빠름, 픽셀 행 1개 ≈ 16KB 페이지 1개). 그래서 닿는 행 수를 줄인다 — 버퍼마다 실제로
+///   그려진 셀을 따로 들고 그 버퍼와 다른 셀만 칠하고, 빈칸이던 셀은 지우지 않으며,
+///   셀을 픽셀 행 우선으로 훑는다.
 final class TankView: NSView {
     let metrics: CellMetrics
     let cols: Int
@@ -24,21 +28,26 @@ final class TankView: NSView {
     weak var world: World?
 
     private let glyphs: GlyphCache
-    /// 화면에 그려져 있는 셀 (상태줄 포함, rows × cols).
-    private var shown: [DrawnCell]
-    private var pending: [DrawnCell]
-    /// 직전 프레임에 바뀐 셀 — 뒤 버퍼가 아직 모르는 변화.
-    private var lastChanged: [Int] = []
+    /// 이번 tick에 화면에 있어야 할 셀 (상태줄 포함, rows × cols).
+    private var target: [DrawnCell]
+    /// 버퍼마다 실제로 그려져 있는 셀. 뒤 버퍼는 이것과 target이 다른 셀만 칠한다.
+    private var drawn: [[DrawnCell]] = []
     private var buffers: [SurfaceBuffer] = []
     private var front = 0
     private var scale: CGFloat = 0
+    /// 셀 한 칸의 픽셀 높이 (줄 높이는 정수 포인트라 배율을 곱해도 정수).
+    private var cellPixelHeight = 0
+    /// 스칼라 하나로 안 떨어지는 글자(이모지 조합 등)의 번호표.
+    private var interned: [Character: UInt32] = [:]
+    private var internedChars: [Character] = []
 
-    /// 셀 하나의 그린 결과. 공백은 glyph를 그리지 않는다.
-    private struct DrawnCell: Equatable {
-        var ch: Character = " "
+    /// 셀 하나의 그린 결과. code는 유니코드 스칼라 값(공백 = 32) 또는 번호표(최상위 비트).
+    fileprivate struct DrawnCell: Equatable {
+        var code: UInt32 = 32
         var color: UInt8 = 0
         /// 2칸 폭 글자(상태줄의 한글·이모지) — 2칸 가운데에 그린다.
         var wide = false
+        var isBlank: Bool { code == 32 }
     }
 
     init(visibleRect: CGRect, metrics: CellMetrics) {
@@ -50,8 +59,7 @@ final class TankView: NSView {
                            y: (visibleRect.midY - size.height / 2).rounded(),
                            width: size.width, height: size.height)
         glyphs = GlyphCache(font: metrics.font)
-        shown = Array(repeating: DrawnCell(), count: cols * rows)
-        pending = shown
+        target = Array(repeating: DrawnCell(), count: cols * rows)
         super.init(frame: frame)
 
         let host = CALayer()
@@ -73,99 +81,198 @@ final class TankView: NSView {
         let scale = window?.backingScaleFactor ?? 2
         guard scale != self.scale else { return }
         self.scale = scale
+        cellPixelHeight = Int((metrics.height * scale).rounded())
+        Probe.cellPixelWidth = Double(metrics.width * scale)
+        Probe.cellPixelHeight = cellPixelHeight
         layer?.contentsScale = scale
         buffers = (0..<2).compactMap { _ in SurfaceBuffer(size: bounds.size, scale: scale) }
-        // 새 버퍼는 비어 있다 — 두 장 모두 현재 셀 전체를 칠한다.
-        for buffer in buffers { paint(Array(0..<(cols * rows)), into: buffer) }
+        // 새 버퍼는 배경색으로 칠해져 있다 = 전부 빈칸.
+        drawn = buffers.map { _ in Array(repeating: DrawnCell(), count: cols * rows) }
+        guard buffers.count == 2 else { return }
+        front = 0
+        paint(into: 0)
         present()
     }
 
-    /// 이번 tick의 상태를 셀로 펼치고, 바뀐 셀만 뒤 버퍼에 칠해 앞으로 돌린다.
+    /// 이번 tick의 상태를 셀로 펼치고, 뒤 버퍼에서 다른 셀만 칠해 앞으로 돌린다.
     func refresh() {
         guard let world else { return }
+        let tc = Probe.now()
         let grid = world.composeGrid()
+        Probe.add("composeGrid", since: tc)
+        let tf = Probe.now()
+        // 셀 색은 반드시 displayColor로 — 밤 감광이 여기서 들어간다. 셀마다 Core를 부르지
+        // 않고 이번 프레임의 256색 표를 displayColor로 한 번 만든다(glow 셀은 감광 없음).
+        let dimmedTable = (0...255).map { world.displayColor(Cell(color: UInt8($0))) }
         for r in 0..<min(rows - 1, grid.count) {
             let row = grid[r]
             let base = r * cols
             for c in 0..<min(cols, row.count) {
                 let cell = row[c]
-                // 셀 색은 반드시 displayColor로 — 밤 감광이 여기서 들어간다.
-                pending[base + c] = cell.ch == " "
+                target[base + c] = cell.ch == " "
                     ? DrawnCell()
-                    : DrawnCell(ch: cell.ch, color: world.displayColor(cell))
+                    : DrawnCell(code: code(of: cell.ch),
+                                color: cell.glow ? cell.color : dimmedTable[Int(cell.color)])
             }
         }
         layoutStatusLine(world.statusSegments(hints: false))
+        Probe.add("flatten+status", since: tf)
 
-        var changed: [Int] = []
-        for i in 0..<pending.count where pending[i] != shown[i] { changed.append(i) }
-        // 상태줄은 2칸 글자가 섞여 셀 단위 비교로는 어긋날 수 있다 — 바뀌면 줄 전체.
-        let statusBase = (rows - 1) * cols
-        if changed.last.map({ $0 >= statusBase }) == true {
-            changed.removeAll { $0 >= statusBase }
-            changed += Array(statusBase..<(rows * cols))
-        }
-        swap(&shown, &pending)
-        guard !changed.isEmpty || !lastChanged.isEmpty, buffers.count == 2 else { return }
-
-        let back = buffers[1 - front]
-        paint(Array(Set(changed).union(lastChanged)), into: back)
-        lastChanged = changed
-        front = 1 - front
+        guard buffers.count == 2 else { return }
+        let back = 1 - front
+        let tp = Probe.now()
+        let painted = paint(into: back)
+        Probe.add("paint(total)", since: tp, count: painted)
+        guard painted > 0 else { return }   // 바뀐 게 없으면 버퍼를 돌리지 않는다
+        front = back
+        let tpr = Probe.now()
         present()
+        Probe.add("present", since: tpr)
+        if Probe.enabled { Probe.verifyTick { self.verifyFront() } }
     }
 
     private func present() {
-        guard buffers.count == 2 else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         layer?.contents = buffers[front].surface
         CATransaction.commit()
     }
 
-    /// 셀들의 배경을 칠하고 글리프를 그린다.
-    private func paint(_ indices: [Int], into buffer: SurfaceBuffer) {
-        guard !indices.isEmpty else { return }
+    /// 버퍼 b에서 target과 다른 셀을 칠하고, 칠한 셀 수를 돌려준다.
+    @discardableResult
+    private func paint(into b: Int) -> Int {
+        let buffer = buffers[b]
+        let statusBase = (rows - 1) * cols
+        let cellPixelWidth = metrics.width * scale
+        var clears: [PixelRect] = []
         var batch = GlyphBatch()
-        var rects: [CGRect] = []
-        rects.reserveCapacity(indices.count)
-        let cellSize = CGSize(width: metrics.width, height: metrics.height)
-        for i in indices {
-            let r = i / cols, c = i % cols
-            let origin = CGPoint(x: CGFloat(c) * metrics.width,
-                                 y: bounds.height - CGFloat(r + 1) * metrics.height)
-            rects.append(CGRect(origin: origin, size: cellSize))
-            let cell = shown[i]
-            guard cell.ch != " " else { continue }
-            let glyph = glyphs[cell.ch]
+        var count = 0
+
+        let pixelHeight = buffer.pixelHeight
+        /// 지울 영역 — 셀 전체가 아니라 그 버퍼에 있던 글자의 잉크 영역(±1px)만.
+        /// 닿는 픽셀 행 수가 곧 비용이라('.'은 36행 대신 4~5행) 가장 큰 절감이다.
+        /// 글자는 행 띠로 잘려 그려지고 셀 폭은 정수 픽셀이라 잉크는 셀 밖으로 안 나간다.
+        func clearRect(_ old: DrawnCell, _ r: Int, _ c: Int) -> PixelRect {
+            let cell = PixelRect(x0: Int((CGFloat(c) * cellPixelWidth).rounded()),
+                                 x1: Int((CGFloat(c + 1) * cellPixelWidth).rounded()),
+                                 y0: r * cellPixelHeight, y1: (r + 1) * cellPixelHeight, row: r)
+            let glyph = glyphs[old.code, character(of: old.code)]
+            guard !old.wide, !glyph.ink.isNull, !glyph.ink.isEmpty else { return cell }
+            let originX = CGFloat(c) * metrics.width
+            let originY = bounds.height - CGFloat(r + 1) * metrics.height + metrics.descent
+            let ink = glyph.ink.offsetBy(dx: originX, dy: originY)
+            return PixelRect(x0: max(cell.x0, Int((ink.minX * scale).rounded(.down)) - 1),
+                             x1: min(cell.x1, Int((ink.maxX * scale).rounded(.up)) + 1),
+                             y0: max(cell.y0, pixelHeight - Int((ink.maxY * scale).rounded(.up)) - 1),
+                             y1: min(cell.y1, pixelHeight - Int((ink.minY * scale).rounded(.down)) + 1),
+                             row: r)
+        }
+        func addGlyph(_ cell: DrawnCell, _ r: Int, _ c: Int) {
+            guard !cell.isBlank else { return }
+            let glyph = glyphs[cell.code, character(of: cell.code)]
             // 대체 폰트의 한글은 2칸보다 좁다 — 왼쪽에 붙이면 "물 고 기"처럼 벌어진다.
             let inset = cell.wide ? max(0, (metrics.width * 2 - glyph.advance) / 2) : 0
             batch.add(glyph, color: cell.color,
-                      at: CGPoint(x: origin.x + inset, y: origin.y + metrics.descent))
+                      at: CGPoint(x: CGFloat(c) * metrics.width + inset,
+                                  y: bounds.height - CGFloat(r + 1) * metrics.height + metrics.descent),
+                      row: r, band: rowBand(r))
         }
+
+        // 수조 그리드: 다른 셀만. 그 버퍼에서 빈칸이던 셀은 이미 배경색이라 지우지 않는다.
+        for i in 0..<statusBase where drawn[b][i] != target[i] {
+            let r = i / cols, c = i % cols
+            if !drawn[b][i].isBlank { clears.append(clearRect(drawn[b][i], r, c)) }
+            addGlyph(target[i], r, c)
+            drawn[b][i] = target[i]
+            count += 1
+        }
+        // 상태줄은 2칸 글자가 섞여 셀 단위로는 옆 칸에 번진 잉크가 남는다 — 바뀌면 줄 전체.
+        if (statusBase..<(rows * cols)).contains(where: { drawn[b][$0] != target[$0] }) {
+            clears.append(PixelRect(x0: 0, x1: buffer.pixelWidth,
+                                    y0: (rows - 1) * cellPixelHeight, y1: rows * cellPixelHeight, row: rows - 1))
+            for c in 0..<cols {
+                addGlyph(target[statusBase + c], rows - 1, c)
+                drawn[b][statusBase + c] = target[statusBase + c]
+            }
+            count += cols
+        }
+        guard count > 0 else { return 0 }
+
         buffer.draw { context in
+            let tcl = Probe.now()
             // 배경은 CG를 거치지 않고 픽셀에 직접 쓴다. 셀마다 fill을 부르면 호출당 고정
             // 비용이 렌더 시간의 절반이었고, fill([CGRect])는 영역 합집합 계산으로 더 느렸다.
-            buffer.clear(rects)
+            buffer.clear(clears)
+            Probe.add("  clear", since: tcl, count: clears.count)
+            let tg = Probe.now()
             batch.draw(in: context)
+            Probe.add("  glyphs", since: tg)
         }
+        return count
+    }
+
+    /// 행 r의 띠 (포인트, 좌하단 원점).
+    private func rowBand(_ r: Int) -> CGRect {
+        CGRect(x: 0, y: bounds.height - CGFloat(r + 1) * metrics.height,
+               width: bounds.width, height: metrics.height)
+    }
+
+    /// Probe 전용: 앞 버퍼를 같은 상태로 처음부터 다시 그린 결과와 픽셀 단위로 비교한다.
+    /// 부분 갱신이 잔상을 남기면 여기서 잡힌다.
+    private func verifyFront() -> (mismatched: Int, total: Int) {
+        guard let fresh = SurfaceBuffer(size: bounds.size, scale: scale) else { return (0, 0) }
+        var batch = GlyphBatch()
+        let state = drawn[front]
+        for r in 0..<rows {
+            for c in 0..<cols {
+                let cell = state[r * cols + c]
+                guard !cell.isBlank else { continue }
+                let glyph = glyphs[cell.code, character(of: cell.code)]
+                let inset = cell.wide ? max(0, (metrics.width * 2 - glyph.advance) / 2) : 0
+                batch.add(glyph, color: cell.color,
+                          at: CGPoint(x: CGFloat(c) * metrics.width + inset,
+                                      y: bounds.height - CGFloat(r + 1) * metrics.height + metrics.descent),
+                          row: r, band: rowBand(r))
+            }
+        }
+        fresh.draw { batch.draw(in: $0) }
+        return fresh.mismatches(against: buffers[front])
     }
 
     /// 상태줄 — 터미널처럼 그리드 마지막 행. 한글·이모지는 2칸을 차지한다.
     private func layoutStatusLine(_ segments: [StatusSegment]) {
         let base = (rows - 1) * cols
-        for c in 0..<cols { pending[base + c] = DrawnCell() }
+        for c in 0..<cols { target[base + c] = DrawnCell() }
         var col = 0
         for segment in segments {
             for ch in segment.text {
                 guard col < cols else { return }
+                let code = code(of: ch)
                 // 터미널 폭 규칙(한글·이모지)에 더해, 대체 폰트가 실제로 넓게 그리는 글자
                 // (✉ 같은 기호가 컬러 이모지로 그려지는 경우)도 2칸을 준다 — 안 그러면 뒤 글자와 겹친다.
-                let wide = Self.isWide(ch) || glyphs[ch].advance > metrics.width * 1.3
-                if ch != " " { pending[base + col] = DrawnCell(ch: ch, color: segment.color, wide: wide) }
+                let wide = Self.isWide(ch) || glyphs[code, ch].advance > metrics.width * 1.3
+                if ch != " " { target[base + col] = DrawnCell(code: code, color: segment.color, wide: wide) }
                 col += wide ? 2 : 1
             }
         }
+    }
+
+    /// 글자 → 셀 코드. 어항 그리드는 거의 ASCII라 asciiValue로 바로 끝난다.
+    private func code(of ch: Character) -> UInt32 {
+        if let a = ch.asciiValue { return UInt32(a) }
+        let scalars = ch.unicodeScalars
+        if scalars.count == 1, let s = scalars.first { return s.value }
+        if let id = interned[ch] { return id }
+        let id = 0x8000_0000 | UInt32(internedChars.count)
+        interned[ch] = id
+        internedChars.append(ch)
+        return id
+    }
+
+    private func character(of code: UInt32) -> Character {
+        code & 0x8000_0000 != 0
+            ? internedChars[Int(code & 0x7FFF_FFFF)]
+            : Character(UnicodeScalar(code) ?? " ")
     }
 
     /// 터미널에서 2칸을 차지하는 문자 — Core의 TextWidth(한글)에 이모지를 더한다.
@@ -175,6 +282,13 @@ final class TankView: NSView {
         guard let scalar = ch.unicodeScalars.first else { return false }
         return scalar.properties.isEmojiPresentation
     }
+}
+
+/// 픽셀 좌표 사각형 — 위쪽 행이 0 (IOSurface 메모리 순서).
+struct PixelRect {
+    var x0: Int, x1: Int, y0: Int, y1: Int
+    /// 그리드 행 — clear가 같은 행끼리 묶어 픽셀 행 우선으로 훑는다.
+    var row: Int
 }
 
 /// CPU로 그리고 레이어 contents로 바로 건네는 IOSurface 한 장 (BGRA8, sRGB).
@@ -219,37 +333,79 @@ final class SurfaceBuffer {
     }
 
     private let scale: CGFloat
-    private let pixelHeight: Int
-    private let pixelWidth: Int
+    let pixelHeight: Int
+    let pixelWidth: Int
     /// 배경색 한 픽셀 (BGRA, little-endian 32비트로 쓰면 메모리에 B,G,R,A 순).
     private var backgroundPixel: UInt32
 
-    /// 포인트 좌표(좌하단 원점) 사각형들을 배경색으로 채운다. draw 블록 안에서만 부른다.
-    func clear(_ rects: [CGRect]) {
+    /// 사각형들을 배경색으로 채운다. draw 블록 안에서만 부른다.
+    ///
+    /// 같은 그리드 행으로 이어지는 사각형 묶음을 픽셀 행 우선으로
+    /// 훑는다. 셀마다 36행을 세로로 내려가면 행마다 다른 16KB 페이지라 TLB·프리페처가 놀고,
+    /// 가로로 훑으면 같은 페이지 안에서 이어진다.
+    func clear(_ rects: [PixelRect]) {
         let pixels = surface.baseAddress.assumingMemoryBound(to: UInt32.self)
         let rowPixels = surface.bytesPerRow / 4
         let fill = backgroundPixel
-        for rect in rects {
-            let x0 = max(0, Int((rect.minX * scale).rounded(.down)))
-            let x1 = min(pixelWidth, Int((rect.maxX * scale).rounded(.up)))
-            // 메모리는 위쪽 행부터 — 좌하단 원점 y를 뒤집는다.
-            let y0 = max(0, pixelHeight - Int((rect.maxY * scale).rounded(.up)))
-            let y1 = min(pixelHeight, pixelHeight - Int((rect.minY * scale).rounded(.down)))
-            guard x0 < x1, y0 < y1 else { continue }
-            var row = pixels + y0 * rowPixels + x0
-            for _ in y0..<y1 {
-                // 셀 폭은 20픽셀 안팎이라 함수 호출(memset_pattern4)보다 직접 쓰는 편이 빠르다.
-                for x in 0..<(x1 - x0) { row[x] = fill }
-                row += rowPixels
+        var start = 0
+        while start < rects.count {
+            var end = start + 1
+            while end < rects.count, rects[end].row == rects[start].row { end += 1 }
+            let band = rects[start..<end]
+            let top = max(0, band.map(\.y0).min()!)
+            let bottom = min(pixelHeight, band.map(\.y1).max()!)
+            if top < bottom {
+                for y in top..<bottom {
+                    let row = pixels + y * rowPixels
+                    for rect in band where y >= rect.y0 && y < rect.y1 {
+                        let x0 = max(0, rect.x0), x1 = min(pixelWidth, rect.x1)
+                        var x = x0
+                        while x < x1 { row[x] = fill; x += 1 }
+                    }
+                }
             }
+            start = end
         }
     }
 
+    /// Probe 전용: 다른 버퍼와 픽셀이 다른 개수.
+    func mismatches(against other: SurfaceBuffer) -> (mismatched: Int, total: Int) {
+        surface.lock(options: .readOnly, seed: nil)
+        other.surface.lock(options: .readOnly, seed: nil)
+        defer {
+            other.surface.unlock(options: .readOnly, seed: nil)
+            surface.unlock(options: .readOnly, seed: nil)
+        }
+        let a = surface.baseAddress.assumingMemoryBound(to: UInt32.self)
+        let b = other.surface.baseAddress.assumingMemoryBound(to: UInt32.self)
+        let rowA = surface.bytesPerRow / 4, rowB = other.surface.bytesPerRow / 4
+        var bad = 0
+        var ghost = 0          // other(앞 버퍼)에만 잉크 — 지워지지 않은 잔상
+        var edgeX = [Int: Int](), edgeY = [Int: Int]()
+        let cw = Probe.cellPixelWidth, ch = Probe.cellPixelHeight
+        for y in 0..<pixelHeight {
+            for x in 0..<pixelWidth where a[y * rowA + x] != b[y * rowB + x] {
+                bad += 1
+                if a[y * rowA + x] == backgroundPixel { ghost += 1 }
+                if cw > 0 { edgeX[Int(Double(x).truncatingRemainder(dividingBy: cw)), default: 0] += 1 }
+                if ch > 0 { edgeY[y % ch, default: 0] += 1 }
+            }
+        }
+        if Probe.enabled, bad > 0 {
+            Probe.log("  잔상(앞 버퍼에만 잉크) \(ghost)px · 셀 안 x위치 \(edgeX.sorted { $0.value > $1.value }.prefix(6)) · y위치 \(edgeY.sorted { $0.value > $1.value }.prefix(6))")
+        }
+        return (bad, pixelWidth * pixelHeight)
+    }
+
     func draw(_ body: (CGContext) -> Void) {
+        let tl = Probe.now()
         surface.lock(options: [], seed: nil)
+        Probe.add("  lock", since: tl)
         body(context)
+        let tf = Probe.now()
         context.flush()
         surface.unlock(options: [], seed: nil)
+        Probe.add("  flush+unlock", since: tf)
     }
 }
 
@@ -260,7 +416,10 @@ struct CellMetrics {
     let height: CGFloat
     let descent: CGFloat
 
-    init(pointSize: CGFloat) {
+    /// - Parameter scale: 화면 배율. 셀 폭을 정수 픽셀로 올린다 — 9.27pt × 2 = 18.54px처럼
+    ///   경계 픽셀 열을 두 셀이 나눠 쓰면, 한쪽을 지울 때 옆 글자의 안티앨리어싱 한 열이
+    ///   같이 지워진다(픽셀 검증으로 확인). 글자도 픽셀 격자에 맞아 더 선명하다.
+    init(pointSize: CGFloat, scale: CGFloat) {
         let nsFont = NSFont.monospacedSystemFont(ofSize: pointSize, weight: .regular)
         font = nsFont as CTFont
         var glyph = CGGlyph(0)
@@ -268,37 +427,40 @@ struct CellMetrics {
         CTFontGetGlyphsForCharacters(font, &unichar, &glyph, 1)
         var advance = CGSize.zero
         CTFontGetAdvancesForGlyphs(font, .horizontal, &glyph, &advance, 1)
-        width = advance.width
+        width = (advance.width * scale).rounded(.up) / scale
         descent = CTFontGetDescent(font)
         height = (CTFontGetAscent(font) + descent + CTFontGetLeading(font)).rounded(.up)
     }
 }
 
 /// 문자 → (폰트, 글리프). SF Mono에 없는 한글·이모지·기호는 시스템 폴백 폰트를 찾는다.
-/// 어항 그리드는 거의 ASCII라 ASCII는 배열로 바로 찾는다(Character 해시를 피한다).
+/// 어항 그리드는 거의 ASCII라 ASCII는 배열로 바로 찾는다.
 final class GlyphCache {
     struct Entry {
         let font: CTFont
         let glyph: CGGlyph
         let advance: CGFloat
+        /// 글리프 원점 기준 잉크 영역(포인트). 지울 때 이 영역만 지운다.
+        let ink: CGRect
     }
 
     private let base: CTFont
     private var ascii: [Entry?] = Array(repeating: nil, count: 128)
-    private var cache: [Character: Entry] = [:]
+    private var cache: [UInt32: Entry] = [:]
 
     init(font: CTFont) { base = font }
 
-    subscript(ch: Character) -> Entry {
-        if let a = ch.asciiValue {
-            if let hit = ascii[Int(a)] { return hit }
-            let entry = lookup(ch)
-            ascii[Int(a)] = entry
+    /// code는 셀 코드(TankView.code(of:)), ch는 처음 볼 때만 쓰는 원래 글자.
+    subscript(code: UInt32, ch: @autoclosure () -> Character) -> Entry {
+        if code < 128 {
+            if let hit = ascii[Int(code)] { return hit }
+            let entry = lookup(ch())
+            ascii[Int(code)] = entry
             return entry
         }
-        if let hit = cache[ch] { return hit }
-        let entry = lookup(ch)
-        cache[ch] = entry
+        if let hit = cache[code] { return hit }
+        let entry = lookup(ch())
+        cache[code] = entry
         return entry
     }
 
@@ -312,13 +474,19 @@ final class GlyphCache {
         }
         var advance = CGSize.zero
         CTFontGetAdvancesForGlyphs(font, .horizontal, &glyphs, &advance, 1)
-        return Entry(font: font, glyph: glyphs[0], advance: advance.width)
+        var ink = CGRect.zero
+        CTFontGetBoundingRectsForGlyphs(font, .horizontal, &glyphs, &ink, 1)
+        return Entry(font: font, glyph: glyphs[0], advance: advance.width, ink: ink)
     }
 }
 
-/// (폰트, 색)별로 글리프를 모아 CTFontDrawGlyphs 한 번에 그린다.
+/// (행, 폰트, 색)별로 글리프를 모아 CTFontDrawGlyphs 한 번에 그린다.
+///
+/// 행 띠로 잘라서 그린다 — SF Mono의 '|'는 셀 아래로 0.37pt 넘쳐, 아래 칸이 빈칸이면
+/// 영영 안 지워지는 잔상이 쌓였다(픽셀 검증으로 확인). 자기 행 밖으로 잉크를 못 남기게 한다.
 struct GlyphBatch {
     private struct Key: Hashable {
+        let row: Int
         let font: ObjectIdentifier
         let color: UInt8
     }
@@ -326,20 +494,26 @@ struct GlyphBatch {
     private var fonts: [ObjectIdentifier: CTFont] = [:]
     private var glyphs: [Key: [CGGlyph]] = [:]
     private var positions: [Key: [CGPoint]] = [:]
+    private var bands: [Int: CGRect] = [:]
 
-    mutating func add(_ entry: GlyphCache.Entry, color: UInt8, at point: CGPoint) {
+    /// - Parameter band: 이 글리프가 속한 행 띠(포인트 좌표). 그 밖은 잘린다.
+    mutating func add(_ entry: GlyphCache.Entry, color: UInt8, at point: CGPoint, row: Int, band: CGRect) {
         let id = ObjectIdentifier(entry.font)
         fonts[id] = entry.font
-        let key = Key(font: id, color: color)
+        bands[row] = band
+        let key = Key(row: row, font: id, color: color)
         glyphs[key, default: []].append(entry.glyph)
         positions[key, default: []].append(point)
     }
 
     func draw(in context: CGContext) {
         for (key, glyphs) in glyphs {
-            guard let font = fonts[key.font], let points = positions[key] else { continue }
+            guard let font = fonts[key.font], let points = positions[key], let band = bands[key.row] else { continue }
+            context.saveGState()
+            context.clip(to: band)
             context.setFillColor(Palette.colors[Int(key.color)])
             CTFontDrawGlyphs(font, glyphs, points, glyphs.count, context)
+            context.restoreGState()
         }
     }
 }
