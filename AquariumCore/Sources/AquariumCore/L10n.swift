@@ -2,7 +2,9 @@ import Foundation
 
 /// Language selection: AQUARIUM_LANG env > LC_ALL/LC_MESSAGES/LANG > macOS AppleLocale > English.
 public enum L10n {
-    public static let isKorean: Bool = {
+    /// 앱이 덮어쓸 수 있다 — 데스크톱은 환경 변수가 없어 메뉴 설정으로 정한다.
+    /// 터미널은 건드리지 않고 아래 기본 판정을 그대로 쓴다.
+    public static var isKorean: Bool = {
         let env = ProcessInfo.processInfo.environment
         if let forced = env["AQUARIUM_LANG"]?.lowercased() {
             if forced.hasPrefix("ko") { return true }

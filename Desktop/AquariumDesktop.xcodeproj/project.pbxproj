@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		A1000000000000000000B001 /* AquariumCore in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000D001 /* AquariumCore */; };
+		A1000000000000000000B002 /* AquariumAudio in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000D002 /* AquariumAudio */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000000000000000000B001 /* AquariumCore in Frameworks */,
+				A1000000000000000000B002 /* AquariumAudio in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = AquariumDesktop;
 			packageProductDependencies = (
 				A1000000000000000000D001 /* AquariumCore */,
+				A1000000000000000000D002 /* AquariumAudio */,
 			);
 			productName = AquariumDesktop;
 			productReference = A1000000000000000000A001 /* AquariumDesktop.app */;
@@ -145,7 +148,7 @@
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
@@ -162,11 +165,26 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
+		};
+		A10000000000000000005005 /* Release-Internal */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = "Release-Internal";
 		};
 		A10000000000000000005003 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -218,6 +236,31 @@
 			};
 			name = Release;
 		};
+		A10000000000000000005006 /* Release-Internal */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Aquarium;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
+				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© agiletalk";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wantedlab.AquariumDesktop; /* 사내 스토어 배포용 — 값 확인 대기 */
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = "Release-Internal";
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -226,6 +269,7 @@
 			buildConfigurations = (
 				A10000000000000000005001 /* Debug */,
 				A10000000000000000005002 /* Release */,
+				A10000000000000000005005 /* Release-Internal */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -235,6 +279,7 @@
 			buildConfigurations = (
 				A10000000000000000005003 /* Debug */,
 				A10000000000000000005004 /* Release */,
+				A10000000000000000005006 /* Release-Internal */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -252,6 +297,10 @@
 		A1000000000000000000D001 /* AquariumCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AquariumCore;
+		};
+		A1000000000000000000D002 /* AquariumAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AquariumAudio;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

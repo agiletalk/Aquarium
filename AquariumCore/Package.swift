@@ -7,10 +7,13 @@ let package = Package(
     name: "AquariumCore",
     platforms: [.macOS(.v12)],
     products: [
-        .library(name: "AquariumCore", targets: ["AquariumCore"])
+        .library(name: "AquariumCore", targets: ["AquariumCore"]),
+        .library(name: "AquariumAudio", targets: ["AquariumAudio"]),
     ],
     targets: [
         .target(name: "AquariumCore"),
+        // 칩튠 BGM — AVFoundation을 쓰므로 Core와 나눈다.
+        .target(name: "AquariumAudio", dependencies: ["AquariumCore"]),
         .testTarget(name: "AquariumCoreTests", dependencies: ["AquariumCore"])
     ]
 )

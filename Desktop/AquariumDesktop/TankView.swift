@@ -37,6 +37,8 @@ final class TankView: NSView {
     private struct DrawnCell: Equatable {
         var ch: Character = " "
         var color: UInt8 = 0
+        /// 2칸 폭 글자(상태줄의 한글·이모지) — 2칸 가운데에 그린다.
+        var wide = false
     }
 
     init(visibleRect: CGRect, metrics: CellMetrics) {
@@ -135,8 +137,11 @@ final class TankView: NSView {
             rects.append(CGRect(origin: origin, size: cellSize))
             let cell = shown[i]
             guard cell.ch != " " else { continue }
-            batch.add(glyphs[cell.ch], color: cell.color,
-                      at: CGPoint(x: origin.x, y: origin.y + metrics.descent))
+            let glyph = glyphs[cell.ch]
+            // 대체 폰트의 한글은 2칸보다 좁다 — 왼쪽에 붙이면 "물 고 기"처럼 벌어진다.
+            let inset = cell.wide ? max(0, (metrics.width * 2 - glyph.advance) / 2) : 0
+            batch.add(glyph, color: cell.color,
+                      at: CGPoint(x: origin.x + inset, y: origin.y + metrics.descent))
         }
         buffer.draw { context in
             // 배경은 CG를 거치지 않고 픽셀에 직접 쓴다. 셀마다 fill을 부르면 호출당 고정
@@ -154,8 +159,9 @@ final class TankView: NSView {
         for segment in segments {
             for ch in segment.text {
                 guard col < cols else { return }
-                if ch != " " { pending[base + col] = DrawnCell(ch: ch, color: segment.color) }
-                col += Self.isWide(ch) ? 2 : 1
+                let wide = Self.isWide(ch)
+                if ch != " " { pending[base + col] = DrawnCell(ch: ch, color: segment.color, wide: wide) }
+                col += wide ? 2 : 1
             }
         }
     }
@@ -272,6 +278,7 @@ final class GlyphCache {
     struct Entry {
         let font: CTFont
         let glyph: CGGlyph
+        let advance: CGFloat
     }
 
     private let base: CTFont
@@ -301,7 +308,9 @@ final class GlyphCache {
         if !CTFontGetGlyphsForCharacters(font, utf16, &glyphs, utf16.count) {
             font = base // 찾지 못하면 기본 폰트의 .notdef라도 그린다
         }
-        return Entry(font: font, glyph: glyphs[0])
+        var advance = CGSize.zero
+        CTFontGetAdvancesForGlyphs(font, .horizontal, &glyphs, &advance, 1)
+        return Entry(font: font, glyph: glyphs[0], advance: advance.width)
     }
 }
 

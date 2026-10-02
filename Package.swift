@@ -10,7 +10,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "aquarium",
-            dependencies: [.product(name: "AquariumCore", package: "AquariumCore")],
+            dependencies: [
+                .product(name: "AquariumCore", package: "AquariumCore"),
+                .product(name: "AquariumAudio", package: "AquariumCore"),
+            ],
             path: "Sources/aquarium"
         )
     ]

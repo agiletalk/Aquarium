@@ -10,14 +10,15 @@ struct ChipSong {
     let bass: [Int]
 }
 
-/// DOS 시절 감성의 칩튠 신시사이저.
+/// DOS 시절 감성의 칩튠 신시사이저. 터미널·데스크톱 앱이 함께 쓴다(AquariumAudio).
+/// AVFoundation이 필요해 Foundation 전용인 AquariumCore와 타겟을 나눴다.
 /// 외부 파일 없이 사각파(멜로디) + 삼각파(베이스)를 실시간 합성한다.
-final class MusicPlayer {
-    static let shared = MusicPlayer()
+public final class MusicPlayer {
+    public static let shared = MusicPlayer()
 
     private let engine = AVAudioEngine()
     private var source: AVAudioSourceNode?
-    private(set) var isPlaying = false
+    public private(set) var isPlaying = false
     private var lastAnnounced = -1
 
     // Audio-thread state (render block에서만 변경)
@@ -107,7 +108,7 @@ final class MusicPlayer {
     ]
 
     /// Returns the status message to show in the tank.
-    func toggle() -> String {
+    public func toggle() -> String {
         if isPlaying {
             engine.stop()
             isPlaying = false
@@ -126,7 +127,7 @@ final class MusicPlayer {
     }
 
     /// Song changed since last poll? Used for "지금 나오는 곡" announcements.
-    func pollNewTitle() -> String? {
+    public func pollNewTitle() -> String? {
         guard isPlaying, lastAnnounced != songIndex else { return nil }
         lastAnnounced = songIndex
         return L10n.songTitle(songIndex)

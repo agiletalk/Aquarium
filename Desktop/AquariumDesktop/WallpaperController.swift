@@ -28,25 +28,31 @@ final class WallpaperController: ObservableObject {
         }
     }
 
+    /// 수족관 켜기/끄기. 끄면 저장하고 창과 tick을 멈춘다.
+    @Published var enabled: Bool = Settings.enabled {
+        didSet {
+            guard enabled != oldValue else { return }
+            Settings.enabled = enabled
+            enabled ? show() : hide()
+        }
+    }
+    /// 메뉴 체크 표시용 — 어항 상태를 매번 비춘다.
+    @Published private(set) var lighting: Lighting = .auto
+    @Published private(set) var season: Season = .auto
+    @Published private(set) var musicPlaying = false
+
     private var world: World?
     private var window: NSWindow?
     private var view: TankView?
     private var timer: Timer?
     private var observer: NSObjectProtocol?
+    private var started = false
     private let effects = DesktopEffects()
     private static let displayKey = "displayUUID"
 
     init() {
         selectedDisplayID = UserDefaults.standard.string(forKey: Self.displayKey)
-        rebuild()
-        observer = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main
-        ) { [weak self] _ in self?.rebuild() }
-
-        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in self?.tick() }
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+        L10n.isKorean = Settings.korean
     }
 
     deinit {
@@ -54,7 +60,70 @@ final class WallpaperController: ObservableObject {
         if let observer { NotificationCenter.default.removeObserver(observer) }
     }
 
+    /// 앱이 뜬 뒤 한 번. 터미널 어항 가져오기를 먼저 물어봐야 해서 init과 나눴다.
+    func start() {
+        guard !started else { return }
+        started = true
+        displays = NSScreen.screens.map { Display(id: Self.uuid(of: $0), name: $0.localizedName) }
+        observer = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in self?.rebuild() }
+        if enabled { show() }
+    }
+
     func save() { world?.writeSave() }
+
+    // MARK: - 메뉴 동작 (터미널의 f·g·n·t·m 키)
+
+    func feed() { world?.feed() }
+    func feedLive() { world?.feedLive() }
+
+    func setLighting(_ mode: Lighting) {
+        world?.setLighting(mode)
+        syncState()
+    }
+
+    func setSeason(_ mode: Season) {
+        world?.setSeason(mode)
+        syncState()
+    }
+
+    func toggleMusic() {
+        world?.toggleMusic()
+        syncState()
+    }
+
+    /// 언어를 바꾸면 상태줄 문구가 다음 tick부터 바뀐다 (L10n은 부를 때마다 고른다).
+    func setKorean(_ korean: Bool) {
+        Settings.korean = korean
+        objectWillChange.send()
+    }
+
+    private func syncState() {
+        guard let world else { return }
+        if lighting != world.lighting { lighting = world.lighting }
+        if season != world.season { season = world.season }
+        if musicPlaying != effects.isMusicPlaying { musicPlaying = effects.isMusicPlaying }
+    }
+
+    private func show() {
+        guard started else { return }
+        rebuild()
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: Self.tickInterval, repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func hide() {
+        timer?.invalidate()
+        timer = nil
+        world?.writeSave()
+        window?.orderOut(nil)
+        window = nil
+        view = nil
+    }
 
     private func tick() {
         world?.update()
@@ -66,6 +135,7 @@ final class WallpaperController: ObservableObject {
     private func rebuild() {
         let screens = NSScreen.screens
         displays = screens.map { Display(id: Self.uuid(of: $0), name: $0.localizedName) }
+        guard enabled, started else { return }
         guard let screen = Self.pick(from: screens, preferred: selectedDisplayID) else { return }
 
         let visible = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
@@ -83,6 +153,7 @@ final class WallpaperController: ObservableObject {
         window?.orderOut(nil)
         window = makeWindow(for: screen, tank: view)
         self.view = view
+        syncState()
     }
 
     /// 선택한 모니터 → 없으면 내장 디스플레이 → 없으면 첫 화면.
