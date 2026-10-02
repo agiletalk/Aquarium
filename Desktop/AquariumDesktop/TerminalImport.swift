@@ -10,7 +10,6 @@ enum TerminalImport {
         guard !Settings.importAsked,
               !FileManager.default.fileExists(atPath: WallpaperController.saveURL.path),
               let terminal = SaveStore.load(), !terminal.fish.isEmpty else { return }
-        Settings.importAsked = true
 
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
@@ -23,7 +22,10 @@ enum TerminalImport {
                 + "The terminal tank stays as it is, and from now on the two tanks grow separately.")
         alert.addButton(withTitle: t("가져오기", "Bring Over"))
         alert.addButton(withTitle: t("새 어항으로 시작", "Start Fresh"))
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let accepted = alert.runModal() == .alertFirstButtonReturn
+        // 답을 받은 뒤에 기록한다 — 알림 중 강제 종료되면 다음 실행 때 다시 묻는다.
+        Settings.importAsked = true
+        guard accepted else { return }
         SaveStore.write(copy(of: terminal), to: WallpaperController.saveURL)
     }
 
