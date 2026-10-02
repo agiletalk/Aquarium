@@ -128,28 +128,34 @@ final class WallpaperController: ObservableObject {
     }
 
     private func tick() {
-        world?.update()
-        if rendering { view?.refresh() }
-        // 가려짐은 1초에 한 번만 본다 — 창 목록 조회가 tick마다 돌 이유는 없다.
-        ticksSinceCheck += 1
-        if ticksSinceCheck >= Int((1 / currentInterval).rounded()) {
-            ticksSinceCheck = 0
+        ticks += 1
+        if rendering {
+            world?.update()
+            view?.refresh()
+            // 보이는 동안은 가려졌는지 1초에 한 번만 본다 — 멈추는 건 조금 늦어도 된다.
+            if ticks % Self.ticksPerSecond == 0 { updateRendering() }
+        } else {
+            // 멈춘 동안은 다시 보이는지를 0.2초마다 본다 — 재개는 빨라야 한다.
+            // 시뮬레이션은 1초에 한 번이면 된다.
+            if ticks % Self.idleTicksPerUpdate == 0 { world?.update() }
             updateRendering()
         }
     }
 
     // MARK: - 배터리 절약
 
-    /// 보이지 않을 때 시뮬레이션은 1초 간격으로만 굴린다 — 자동 저장·자동 먹이·번식
-    /// 타이머(전부 systemUptime 기준)는 그대로 돌고, 헤엄은 보는 사람이 없다.
-    static let idleInterval: TimeInterval = 1
+    /// 보이지 않을 때는 0.2초마다 깨어 다시 보이는지 확인하고, 시뮬레이션은 1초에 한 번만
+    /// 굴린다 — 자동 저장·자동 먹이·번식 타이머(전부 systemUptime 기준)는 그대로 돌고,
+    /// 헤엄은 보는 사람이 없다. (처음엔 1초 간격이었는데 재개가 굼뜨게 느껴졌다.)
+    static let idleInterval: TimeInterval = 0.2
+    private static let idleTicksPerUpdate = 5
+    private static let ticksPerSecond = Int((1 / tickInterval).rounded())
 
     /// 지금 그리고 있는지. 가려짐·잠금·디스플레이 잠자기 중 하나면 false.
     private(set) var rendering = true
     private var screenLocked = false
     private var displaysAsleep = false
-    private var ticksSinceCheck = 0
-    private var currentInterval: TimeInterval = WallpaperController.tickInterval
+    private var ticks = 0
     private var powerObservers: [(NotificationCenter, NSObjectProtocol)] = []
 
     private func observePower() {
@@ -186,8 +192,7 @@ final class WallpaperController: ObservableObject {
 
     private func schedule(interval: TimeInterval) {
         timer?.invalidate()
-        currentInterval = interval
-        ticksSinceCheck = 0
+        ticks = 0
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer

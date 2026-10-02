@@ -8,17 +8,19 @@ import AppKit
 enum DesktopCoverage {
     /// - Parameter rect: 전역 좌표(AppKit, 좌하단 원점)의 관심 영역.
     static func fraction(of rect: CGRect, excludingPID pid: pid_t) -> Double {
+        // [[String: Any]]로 브리징하면 창마다 딕셔너리를 통째로 복사한다 — 멈춘 동안
+        // 0.2초마다 부르므로 NSArray/NSDictionary로 필요한 키만 읽는다.
         guard rect.width > 0, rect.height > 0,
               let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else { return 0 }
+                                                    kCGNullWindowID) as NSArray? else { return 0 }
         // CGWindowList는 좌상단 원점(주 화면 기준) — AppKit 좌표로 뒤집는다.
         let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
         var windows: [CGRect] = []
-        for info in list {
-            guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  (info[kCGWindowOwnerPID as String] as? pid_t) != pid,
-                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0.5,
-                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
+        for case let info as NSDictionary in list {
+            guard (info[kCGWindowLayer] as? NSNumber)?.intValue == 0,
+                  (info[kCGWindowOwnerPID] as? NSNumber)?.int32Value != pid,
+                  (info[kCGWindowAlpha] as? NSNumber)?.doubleValue ?? 1 > 0.5,
+                  let dict = info[kCGWindowBounds] as? NSDictionary,
                   let bounds = CGRect(dictionaryRepresentation: dict) else { continue }
             windows.append(CGRect(x: bounds.minX, y: primaryHeight - bounds.maxY,
                                   width: bounds.width, height: bounds.height))
