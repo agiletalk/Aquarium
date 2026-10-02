@@ -357,6 +357,14 @@ public enum L10n {
     public static var sponsorOpenHint: String {
         t("[o] 브라우저에서 열기   [s] 닫기", "[o] open in browser   [s] close")
     }
+    /// 데스크톱 후원 패널의 안내 — 키 대신 메뉴로 연다.
+    public static var sponsorOpenHintMenu: String {
+        t("메뉴의 '후원 페이지 열기'로 브라우저에서 열 수 있어요", "Use \"Open Support Page\" in the menu to open it")
+    }
+    public static var achievementsEnlarge: String { t("업적을 보려면 창을 키워주세요", "Enlarge the window to see achievements") }
+    public static func achievementsTitle(_ have: Int, _ total: Int) -> String {
+        t("[ 업적 · \(have)/\(total) ]", "[ Achievements · \(have)/\(total) ]")
+    }
     public static var sponsorOpened: String {
         t("브라우저에서 후원 페이지를 열었어요. 고마워요! ☕", "Opened the sponsor page — thank you! ☕")
     }

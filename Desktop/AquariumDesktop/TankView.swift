@@ -25,6 +25,7 @@ import IOSurface
 final class TankView: NSView, TankRenderer {
     let cells: CellFrame
     weak var world: World?
+    var panel: PanelContent?
 
     private var metrics: CellMetrics { cells.metrics }
     private var glyphs: GlyphCache { cells.glyphs }
@@ -77,7 +78,7 @@ final class TankView: NSView, TankRenderer {
     func refresh() {
         guard let world else { return }
         let tf = Probe.now()
-        cells.update(from: world)
+        cells.update(from: world, panel: panel)
         Probe.add("compose+flatten", since: tf)
 
         guard buffers.count == 2 else { return }
@@ -115,8 +116,10 @@ final class TankView: NSView, TankRenderer {
         /// 닿는 픽셀 행 수가 곧 비용이라('.'은 36행 대신 4~5행) 가장 큰 절감이다.
         /// 글자는 행 띠로 잘려 그려지고 셀 폭은 정수 픽셀이라 잉크는 셀 밖으로 안 나간다.
         func clearRect(_ old: DrawnCell, _ r: Int, _ c: Int) -> PixelRect {
+            // 2칸 글자는 오른쪽 칸까지 잉크가 있다 — 두 칸을 지운다.
+            let span = old.wide ? 2 : 1
             let cell = PixelRect(x0: Int((CGFloat(c) * cellPixelWidth).rounded()),
-                                 x1: Int((CGFloat(c + 1) * cellPixelWidth).rounded()),
+                                 x1: min(buffer.pixelWidth, Int((CGFloat(c + span) * cellPixelWidth).rounded())),
                                  y0: r * cellPixelHeight, y1: (r + 1) * cellPixelHeight, row: r)
             let glyph = cells.glyph(for: old)
             guard !old.wide, !glyph.ink.isNull, !glyph.ink.isEmpty else { return cell }
@@ -405,7 +408,7 @@ final class GlyphCache {
 /// 영영 안 지워지는 잔상이 쌓였다(픽셀 검증으로 확인). 자기 행 밖으로 잉크를 못 남기게 한다.
 struct GlyphBatch {
     private struct Key: Hashable {
-        let row: Int
+        let clip: Int
         let font: ObjectIdentifier
         let color: UInt8
     }
@@ -415,19 +418,21 @@ struct GlyphBatch {
     private var positions: [Key: [CGPoint]] = [:]
     private var bands: [Int: CGRect] = [:]
 
-    /// - Parameter band: 이 글리프가 속한 행 띠(포인트 좌표). 그 밖은 잘린다.
-    mutating func add(_ entry: GlyphCache.Entry, color: UInt8, at point: CGPoint, row: Int, band: CGRect) {
+    /// - Parameters:
+    ///   - clip: 같은 클립 영역을 쓰는 글리프끼리 묶는 번호 (보통 행 번호).
+    ///   - band: 클립 영역(포인트 좌표). 그 밖은 잘린다.
+    mutating func add(_ entry: GlyphCache.Entry, color: UInt8, at point: CGPoint, clip: Int, band: CGRect) {
         let id = ObjectIdentifier(entry.font)
         fonts[id] = entry.font
-        bands[row] = band
-        let key = Key(row: row, font: id, color: color)
+        bands[clip] = band
+        let key = Key(clip: clip, font: id, color: color)
         glyphs[key, default: []].append(entry.glyph)
         positions[key, default: []].append(point)
     }
 
     func draw(in context: CGContext) {
         for (key, glyphs) in glyphs {
-            guard let font = fonts[key.font], let points = positions[key], let band = bands[key.row] else { continue }
+            guard let font = fonts[key.font], let points = positions[key], let band = bands[key.clip] else { continue }
             context.saveGState()
             context.clip(to: band)
             context.setFillColor(Palette.colors[Int(key.color)])

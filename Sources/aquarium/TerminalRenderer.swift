@@ -89,24 +89,7 @@ extension World {
     }
 
     /// 후원 안내 패널 (s 키)
-    private func sponsorOverlay() -> String {
-        let gridRows = rows - 1
-        guard cols >= 50, gridRows >= 10 else { return overlay(.tooSmall(L10n.sponsorEnlarge)) }
-        let innerW = min(52, cols - 8)
-        let lines: [PanelLine] = [
-            PanelLine(" " + L10n.sponsorThanks1, 252),
-            PanelLine(" " + L10n.sponsorThanks2, 252),
-            PanelLine("", 252),
-            PanelLine(" \u{2615}  " + Support.display, 45),
-            PanelLine("", 252),
-            PanelLine(" " + L10n.sponsorOpenHint, 245),
-        ]
-        return overlay(.box(Panel(startRow: 4,
-                                  startCol: max(2, (cols - innerW - 2) / 2 + 1),
-                                  innerWidth: innerW,
-                                  title: L10n.sponsorTitle, titleColor: 219,
-                                  lines: lines)))
-    }
+    private func sponsorOverlay() -> String { overlay(sponsorPanel()) }
 
     /// 라운지 설치 QR. 다른 패널과 달리 +---+ 테두리를 두르지 않는다 —
     /// QR은 사방 4모듈의 *밝은* 여백이 있어야 스캐너가 경계를 찾는데,

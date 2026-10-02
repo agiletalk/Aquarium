@@ -46,6 +46,12 @@ final class WallpaperController: ObservableObject {
     /// 지금 GPU로 그리고 있는지 (설정을 켜도 Metal을 못 쓰면 false).
     @Published private(set) var gpuActive = false
     @Published private(set) var gpuRendering = Settings.gpuRendering
+    /// 지금 열린 패널 (한 번에 하나). 열고 30초가 지나면 저절로 닫힌다.
+    @Published private(set) var openPanel: PanelKind?
+    private var panelOpenedAt = Date.distantPast
+    static let panelLifetime: TimeInterval = 30
+
+    enum PanelKind { case roster, mailbox, achievements, sponsor }
     /// 이 맥에서 Metal을 쓸 수 있는지.
     let gpuAvailable = MTLCreateSystemDefaultDevice() != nil
 
@@ -80,6 +86,12 @@ final class WallpaperController: ObservableObject {
         ) { [weak self] _ in self?.rebuild() }
         observePower()
         if enabled { show() }
+        // Probe: 메뉴 없이 패널을 열어 확인한다 (AQUARIUM_PROBE_PANEL=roster|mailbox|achievements|sponsor).
+        if Probe.enabled, let name = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_PANEL"] {
+            let kinds: [String: PanelKind] = ["roster": .roster, "mailbox": .mailbox,
+                                              "achievements": .achievements, "sponsor": .sponsor]
+            if let kind = kinds[name] { togglePanel(kind) }
+        }
     }
 
     func save() { world?.writeSave() }
@@ -114,6 +126,50 @@ final class WallpaperController: ObservableObject {
         guard world?.isFocusing == true else { return }
         world?.toggleFocus()
         syncState()
+    }
+
+    // MARK: - 패널 (도감·편지함·업적·후원)
+
+    /// 같은 패널을 다시 고르면 닫는다. 도감·편지함·후원은 World의 패널 상태와 맞춘다 —
+    /// 편지함을 열면 읽음 처리되는 것 같은 규칙을 터미널과 똑같이 따른다.
+    func togglePanel(_ kind: PanelKind) {
+        let opening = openPanel != kind
+        closeWorldPanels()
+        openPanel = opening ? kind : nil
+        guard opening, let world else { return }
+        switch kind {
+        case .roster: world.toggleRoster()
+        case .mailbox: world.toggleMailbox()
+        case .sponsor: world.toggleSponsor()
+        case .achievements: break   // 터미널엔 업적 패널이 없다(--achievements CLI) — 데스크톱 전용
+        }
+        panelOpenedAt = Date()
+        if rendering { view?.panel = currentPanel(); view?.refresh() }
+    }
+
+    /// 후원 패널이 열려 있을 때 브라우저로 연다.
+    func openSponsorPage() { world?.openSponsor() }
+
+    private func closeWorldPanels() {
+        guard let world else { return }
+        if world.rosterOpen { world.toggleRoster() }
+        if world.mailboxOpen { world.toggleMailbox() }
+        if world.sponsorOpen { world.toggleSponsor() }
+    }
+
+    private func currentPanel() -> PanelContent? {
+        guard let world, let openPanel else { return nil }
+        if Date().timeIntervalSince(panelOpenedAt) > Self.panelLifetime {
+            closeWorldPanels()
+            self.openPanel = nil
+            return nil
+        }
+        switch openPanel {
+        case .roster: return world.rosterPanel()
+        case .mailbox: return world.mailboxPanel()
+        case .achievements: return world.achievementsPanel()
+        case .sponsor: return world.sponsorPanel(openHint: L10n.sponsorOpenHintMenu)
+        }
     }
 
     /// 렌더러를 바꾼다 — 창을 새로 만들고 어항(World)은 그대로 이어받는다.
@@ -169,6 +225,7 @@ final class WallpaperController: ObservableObject {
             world?.update()
             Probe.add("update", since: t0)
             let t1 = Probe.now()
+            view?.panel = currentPanel()
             view?.refresh()
             Probe.add("refresh(total)", since: t1)
             Probe.frame()
@@ -266,6 +323,7 @@ final class WallpaperController: ObservableObject {
             world = makeWorld(cols: view.cols, rows: view.rows)
         }
         view.world = world
+        view.panel = currentPanel()
         view.refresh()
 
         window?.orderOut(nil)
@@ -340,7 +398,12 @@ final class WallpaperController: ObservableObject {
     }
 
     /// 데스크톱 전용 세이브. 터미널(~/.aquarium.json)과 섞지 않는다.
+    /// Probe 중에는 AQUARIUM_DESKTOP_SAVE로 사본을 쓸 수 있다 — FileManager는 HOME 환경 변수를
+    /// 따르지 않아, 임시 HOME으로는 실제 세이브를 못 피한다(편지함 테스트가 읽음 처리를 남겼다).
     static var saveURL: URL {
+        if Probe.enabled, let path = ProcessInfo.processInfo.environment["AQUARIUM_DESKTOP_SAVE"] {
+            return URL(fileURLWithPath: path)
+        }
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("AquariumDesktop", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

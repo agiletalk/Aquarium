@@ -10,7 +10,9 @@ final class DesktopEffects: WorldEffects {
     func playChime() {}
     /// 터미널의 집중 완료 차임과 같은 시스템 소리(Glass).
     func playFocusComplete() { NSSound(named: "Glass")?.play() }
-    func openSponsor() {}
+    func openSponsor() {
+        if let url = URL(string: SupportLink.url) { NSWorkspace.shared.open(url) }
+    }
     var isMusicPlaying: Bool { MusicPlayer.shared.isPlaying }
     func toggleMusic() -> String { MusicPlayer.shared.toggle() }
     func pollNewSongTitle() -> String? { MusicPlayer.shared.pollNewTitle() }

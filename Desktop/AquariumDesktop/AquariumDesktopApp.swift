@@ -65,6 +65,18 @@ private struct AquariumMenu: View {
         .disabled(!wallpaper.enabled)
 
         Divider()
+        Group {
+            Toggle(t("도감", "Fish Guide"), isOn: panelBinding(.roster))
+            Toggle(t("편지함", "Mailbox"), isOn: panelBinding(.mailbox))
+            Toggle(t("업적", "Achievements"), isOn: panelBinding(.achievements))
+            Toggle(t("후원", "Support"), isOn: panelBinding(.sponsor))
+            if wallpaper.openPanel == .sponsor {
+                Button(t("후원 페이지 열기", "Open Support Page")) { wallpaper.openSponsorPage() }
+            }
+        }
+        .disabled(!wallpaper.enabled)
+
+        Divider()
         if wallpaper.displays.count > 1 {
             Picker(t("표시할 모니터", "Display"), selection: Binding(
                 get: { wallpaper.selectedDisplayID ?? wallpaper.displays.first?.id ?? "" },
@@ -95,6 +107,12 @@ private struct AquariumMenu: View {
         Divider()
         Button(t("종료", "Quit")) { NSApp.terminate(nil) }
             .keyboardShortcut("q")
+    }
+}
+
+private extension AquariumMenu {
+    func panelBinding(_ kind: WallpaperController.PanelKind) -> Binding<Bool> {
+        Binding(get: { wallpaper.openPanel == kind }, set: { _ in wallpaper.togglePanel(kind) })
     }
 }
 

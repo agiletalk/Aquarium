@@ -15,6 +15,7 @@ import QuartzCore
 final class MetalTankView: NSView, TankRenderer {
     let cells: CellFrame
     weak var world: World?
+    var panel: PanelContent?
 
     private let device: MTLDevice
     private let queue: MTLCommandQueue
@@ -97,7 +98,7 @@ final class MetalTankView: NSView, TankRenderer {
     func refresh() {
         guard let world else { return }
         let tf = Probe.now()
-        cells.update(from: world)
+        cells.update(from: world, panel: panel)
         Probe.add("compose+flatten", since: tf)
         render()
     }

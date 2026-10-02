@@ -2142,6 +2142,51 @@ public final class World {
     }
 
     /// 받은편지함 패널 (b 키)
+    /// 후원 안내 패널. `openHint`는 여는 방법 안내 — 터미널은 o 키, 데스크톱은 메뉴.
+    public func sponsorPanel(openHint: String = L10n.sponsorOpenHint) -> PanelContent {
+        guard cols >= 50, gridRows >= 10 else { return .tooSmall(L10n.sponsorEnlarge) }
+        let innerW = min(52, cols - 8)
+        let lines: [PanelLine] = [
+            PanelLine(" " + L10n.sponsorThanks1, 252),
+            PanelLine(" " + L10n.sponsorThanks2, 252),
+            PanelLine("", 252),
+            PanelLine(" \u{2615}  " + SupportLink.display, 45),
+            PanelLine("", 252),
+            PanelLine(" " + openHint, 245),
+        ]
+        return .box(Panel(startRow: 4,
+                          startCol: max(2, (cols - innerW - 2) / 2 + 1),
+                          innerWidth: innerW,
+                          title: L10n.sponsorTitle, titleColor: 219,
+                          lines: lines))
+    }
+
+    /// 업적 패널 — `aquarium --achievements`와 같은 목록(획득 ✔ · 미획득은 진행도).
+    /// 판정은 unlockSatisfied와 같은 합산 통계를 쓴다.
+    public func achievementsPanel() -> PanelContent {
+        guard cols >= 50, gridRows >= 12 else { return .tooSmall(L10n.achievementsEnlarge) }
+        let innerW = min(60, cols - 8)
+        let stats = Achievements.mergedStats(from: saveState())
+        let have = Achievements.all.filter { Achievements.isUnlocked($0, stats: stats) }.count
+        let maxList = max(1, gridRows - 7)
+        var lines: [PanelLine] = []
+        for a in Achievements.all.prefix(maxList) {
+            if Achievements.isUnlocked(a, stats: stats) {
+                lines.append(PanelLine(" \u{2714} \(a.icon) \(a.name)  — \(a.desc)", 84))
+            } else {
+                lines.append(PanelLine(" \u{00B7} \(a.icon) \(a.name)  (\(stats[a.stat] ?? 0)/\(a.threshold))", 240))
+            }
+        }
+        if Achievements.all.count > maxList {
+            lines.append(PanelLine(" " + L10n.rosterMore(Achievements.all.count - maxList), 245))
+        }
+        return .box(Panel(startRow: 3,
+                          startCol: max(2, (cols - innerW - 2) / 2 + 1),
+                          innerWidth: innerW,
+                          title: L10n.achievementsTitle(have, Achievements.all.count), titleColor: 226,
+                          lines: lines))
+    }
+
     public func mailboxPanel() -> PanelContent {
         guard cols >= 50, gridRows >= 12 else { return .tooSmall(L10n.mailboxEnlarge) }
         let innerW = min(54, cols - 8)

@@ -3,8 +3,8 @@ import Foundation
 
 /// 후원 링크 설정 + `aquarium --sponsor` CLI.
 enum Support {
-    static let url = "https://ko-fi.com/agiletalk"
-    static let display = "ko-fi.com/agiletalk"
+    static var url: String { SupportLink.url }
+    static var display: String { SupportLink.display }
 
     /// macOS 기본 브라우저로 후원 페이지 열기
     static func openInBrowser() {
