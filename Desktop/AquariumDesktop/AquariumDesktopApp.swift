@@ -45,6 +45,26 @@ private struct AquariumMenu: View {
         .disabled(!wallpaper.enabled)
 
         Divider()
+        Group {
+            if wallpaper.focusing {
+                Button(t("집중 취소", "Cancel Focus")) { wallpaper.cancelFocus() }
+            } else {
+                Menu(t("집중 시작", "Start Focus")) {
+                    ForEach([25, 50], id: \.self) { minutes in
+                        Button(t("\(minutes)분", "\(minutes) min")) { wallpaper.startFocus(minutes: minutes) }
+                    }
+                }
+            }
+            Picker(t("정원", "Capacity"), selection: Binding(
+                get: { wallpaper.fishCap }, set: { wallpaper.setFishCap($0) })) {
+                Text(t("작게 (40)", "Small (40)")).tag(40)
+                Text(t("보통 (80)", "Medium (80)")).tag(80)
+                Text(t("크게 (120)", "Large (120)")).tag(120)
+            }
+        }
+        .disabled(!wallpaper.enabled)
+
+        Divider()
         if wallpaper.displays.count > 1 {
             Picker(t("표시할 모니터", "Display"), selection: Binding(
                 get: { wallpaper.selectedDisplayID ?? wallpaper.displays.first?.id ?? "" },

@@ -99,3 +99,38 @@ struct WorldOutputTests {
         #expect(grid.allSatisfy { $0.count == 80 })
     }
 }
+
+@Suite("정원 — fishCap")
+struct FishCapTests {
+    private func world(cap: Int?, lounge: Bool = true) -> World {
+        let config = RunConfig(lounge: lounge, ephemeral: true,
+                               storage: Storage(saveURL: nil, pollsTerminalQueues: false), fishCap: cap)
+        return World(cols: 300, rows: 90, config: config, effects: SilentEffects())
+    }
+
+    @Test("nil이면 기존 규칙 — 라운지 120, 일반 40")
+    func defaultRule() {
+        #expect(world(cap: nil).capacity == 120)
+        #expect(world(cap: nil, lounge: false).capacity == 40)
+    }
+
+    @Test("정원을 지정하면 그 값, 화면 밀도가 더 작으면 밀도")
+    func capApplied() {
+        #expect(world(cap: 80).capacity == 80)
+        let small = World(cols: 80, rows: 24,
+                          config: RunConfig(lounge: true, ephemeral: true,
+                                            storage: Storage(saveURL: nil, pollsTerminalQueues: false),
+                                            fishCap: 120),
+                          effects: SilentEffects())
+        #expect(small.capacity == 24) // 80*24/80
+    }
+
+    @Test("실행 중에 바꿀 수 있고, 있는 물고기는 그대로")
+    func changeAtRuntime() {
+        let w = world(cap: 120)
+        let before = w.saveState().fish.count
+        w.setFishCap(40)
+        #expect(w.capacity == 40)
+        #expect(w.saveState().fish.count == before)
+    }
+}

@@ -40,6 +40,8 @@ final class WallpaperController: ObservableObject {
     @Published private(set) var lighting: Lighting = .auto
     @Published private(set) var season: Season = .auto
     @Published private(set) var musicPlaying = false
+    @Published private(set) var focusing = false
+    @Published private(set) var fishCap = Settings.fishCap
 
     private var world: World?
     private var window: NSWindow?
@@ -96,6 +98,25 @@ final class WallpaperController: ObservableObject {
         syncState()
     }
 
+    /// 집중(뽀모도로) — 상태줄에 남은 시간, 끝나면 먹이 잔치와 차임.
+    func startFocus(minutes: Int) {
+        world?.startFocus(minutes: minutes)
+        syncState()
+    }
+
+    func cancelFocus() {
+        guard world?.isFocusing == true else { return }
+        world?.toggleFocus()
+        syncState()
+    }
+
+    /// 정원을 바꾼다. 줄여도 있는 물고기는 그대로 — 번식만 멈춘다.
+    func setFishCap(_ cap: Int) {
+        Settings.fishCap = cap
+        fishCap = cap
+        world?.setFishCap(cap)
+    }
+
     /// 언어를 바꾸면 상태줄 문구가 다음 tick부터 바뀐다 (L10n은 부를 때마다 고른다).
     func setKorean(_ korean: Bool) {
         Settings.korean = korean
@@ -107,6 +128,7 @@ final class WallpaperController: ObservableObject {
         if lighting != world.lighting { lighting = world.lighting }
         if season != world.season { season = world.season }
         if musicPlaying != effects.isMusicPlaying { musicPlaying = effects.isMusicPlaying }
+        if focusing != world.isFocusing { focusing = world.isFocusing }
     }
 
     private func show() {
@@ -133,11 +155,18 @@ final class WallpaperController: ObservableObject {
             world?.update()
             view?.refresh()
             // 보이는 동안은 가려졌는지 1초에 한 번만 본다 — 멈추는 건 조금 늦어도 된다.
-            if ticks % Self.ticksPerSecond == 0 { updateRendering() }
+            // 메뉴 상태(집중 완료 등 어항이 스스로 바꾸는 값)도 그때 맞춘다.
+            if ticks % Self.ticksPerSecond == 0 {
+                syncState()
+                updateRendering()
+            }
         } else {
             // 멈춘 동안은 다시 보이는지를 0.2초마다 본다 — 재개는 빨라야 한다.
             // 시뮬레이션은 1초에 한 번이면 된다.
-            if ticks % Self.idleTicksPerUpdate == 0 { world?.update() }
+            if ticks % Self.idleTicksPerUpdate == 0 {
+                world?.update()
+                syncState()
+            }
             updateRendering()
         }
     }
@@ -234,7 +263,8 @@ final class WallpaperController: ObservableObject {
         // lounge 그대로(정원 120·번식 2~3일·자동 먹이). QR은 렌더러가 그리지 않는다.
         // 터미널 큐는 소비하지 않는다 — 같은 큐를 두 어항이 먹으면 먼저 읽은 쪽이 가져간다.
         let config = RunConfig(lounge: true, terminalDark: nil,
-                               storage: Storage(saveURL: Self.saveURL, pollsTerminalQueues: false))
+                               storage: Storage(saveURL: Self.saveURL, pollsTerminalQueues: false),
+                               fishCap: Settings.fishCap)
         return World(cols: cols, rows: rows, config: config,
                      restoring: SaveStore.load(from: Self.saveURL), effects: effects)
     }

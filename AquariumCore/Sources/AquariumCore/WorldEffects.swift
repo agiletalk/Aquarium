@@ -14,4 +14,10 @@ public protocol WorldEffects: AnyObject {
     /// 곡이 바뀌었으면 새 곡 제목, 아니면 nil.
     func pollNewSongTitle() -> String?
     func systemPrefersDark() -> Bool
+    /// 집중(뽀모도로) 완료. 기본은 다른 차임과 같다 — 데스크톱은 이것만 소리를 낸다.
+    func playFocusComplete()
+}
+
+public extension WorldEffects {
+    func playFocusComplete() { playChime() }
 }

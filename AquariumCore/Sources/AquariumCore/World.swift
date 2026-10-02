@@ -323,7 +323,13 @@ public final class World {
 
     /// 밀도 공식(cols*rows/80)은 그대로 두고 천장만 올린다 — 화면이 커져도 물고기
     /// 점유율은 일정하고, 대형 전시 디스플레이에서만 40마리 상한이 풀린다.
-    private var maxFish: Int { max(8, min(lounge ? 120 : 40, cols * rows / 80)) }
+    private var maxFish: Int { max(8, min(fishCap ?? (lounge ? 120 : 40), cols * rows / 80)) }
+
+    /// 정원 상한(앱 설정). 줄여도 이미 있는 물고기를 내보내지 않는다 — 번식만 멈춘다.
+    private var fishCap: Int?
+    public func setFishCap(_ cap: Int?) { fishCap = cap }
+    /// 지금 정원 (화면 밀도 반영).
+    public var capacity: Int { maxFish }
 
     /// 라운지 어항은 몇 주~몇 달에 걸쳐 자라야 전시 서사가 된다. 15~25분 → 2~3일.
     private var breedInterval: ClosedRange<Double> {
@@ -344,6 +350,7 @@ public final class World {
         self.config = config
         self.effects = effects
         self.lounge = config.lounge
+        self.fishCap = config.fishCap
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: breedInterval)
         tankBornAt = Date().timeIntervalSince1970
@@ -730,6 +737,9 @@ public final class World {
         post(L10n.focusStarted(clamped))
     }
 
+    /// 집중(뽀모도로) 타이머가 돌고 있는지.
+    public var isFocusing: Bool { focusUntil != nil }
+
     public func toggleFocus() {
         if focusUntil != nil {
             focusUntil = nil
@@ -759,7 +769,7 @@ public final class World {
                                   phase: Double.random(in: 0...(2 * .pi)),
                                   speed: Double.random(in: 0.2...0.4)))
         }
-        effects.playChime()
+        effects.playFocusComplete()
         post(L10n.focusComplete(focusDone))
         if !ephemeral { writeSave() }
     }

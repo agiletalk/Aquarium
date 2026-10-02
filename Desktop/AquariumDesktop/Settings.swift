@@ -20,6 +20,13 @@ enum Settings {
         }
     }
 
+    /// 정원 상한 (메뉴: 작게 40 / 보통 80 / 크게 120). 기본은 lounge 그대로 120.
+    static var fishCap: Int {
+        get { defaults.object(forKey: "fishCap") as? Int ?? 120 }
+        set { defaults.set(newValue, forKey: "fishCap") }
+    }
+    static let fishCapChoices = [40, 80, 120]
+
     /// 첫 실행 때 터미널 어항 가져오기를 이미 물어봤는지.
     static var importAsked: Bool {
         get { defaults.bool(forKey: "importAsked") }

@@ -14,15 +14,19 @@ public struct RunConfig {
     /// 카드 렌더링용 헤드리스 World — 자동 저장·큐 소비·엽서 점검을 건너뛴다.
     public var ephemeral: Bool
     public var storage: Storage
+    /// 정원 상한. nil이면 기본 규칙(라운지 120 · 일반 40). 화면 밀도(cols*rows/80)는 그대로 적용된다.
+    public var fishCap: Int?
 
     public init(lounge: Bool = false, loungeFast: Bool = false, debugVisitor: String? = nil,
-                terminalDark: Bool? = nil, ephemeral: Bool = false, storage: Storage = .terminal) {
+                terminalDark: Bool? = nil, ephemeral: Bool = false, storage: Storage = .terminal,
+                fishCap: Int? = nil) {
         self.lounge = lounge
         self.loungeFast = loungeFast
         self.debugVisitor = debugVisitor
         self.terminalDark = terminalDark
         self.ephemeral = ephemeral
         self.storage = storage
+        self.fishCap = fishCap
     }
 
     /// 터미널 앱의 resolve — 환경 변수에서 테스트용 탈출구를 읽는다.
