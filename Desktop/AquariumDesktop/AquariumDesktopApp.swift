@@ -84,6 +84,14 @@ private struct AquariumMenu: View {
                 ForEach(wallpaper.displays) { Text($0.name).tag($0.id) }
             }
         }
+        Picker(t("테마", "Theme"), selection: Binding(
+            get: { wallpaper.theme }, set: { wallpaper.setTheme($0) })) {
+            Text(t("기본", "Standard")).tag(Theme.standard)
+            Text(t("밝은 바다", "Light")).tag(Theme.light)
+            Text(t("낮·밤 자동", "Day/Night")).tag(Theme.automatic)
+            Text(t("CRT 녹색", "Green CRT")).tag(Theme.crt)
+            Text(t("앰버", "Amber")).tag(Theme.amber)
+        }
         if wallpaper.gpuAvailable {
             Toggle(t("GPU 렌더링", "GPU Rendering"), isOn: Binding(
                 get: { wallpaper.gpuRendering }, set: { wallpaper.setGPURendering($0) }))

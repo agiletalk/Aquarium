@@ -31,6 +31,12 @@ enum Settings {
         set { defaults.set(newValue, forKey: "gpuRendering") }
     }
 
+    /// 화면 테마. 기본은 지금까지와 같은 딥 네이비.
+    static var theme: Theme {
+        get { defaults.string(forKey: "theme").flatMap(Theme.init(rawValue:)) ?? .standard }
+        set { defaults.set(newValue.rawValue, forKey: "theme") }
+    }
+
     /// 정원 상한 (메뉴: 작게 40 / 보통 80 / 크게 120). 기본은 lounge 그대로 120.
     static var fishCap: Int {
         get { defaults.object(forKey: "fishCap") as? Int ?? 120 }

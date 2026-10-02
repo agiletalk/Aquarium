@@ -46,6 +46,7 @@ final class WallpaperController: ObservableObject {
     /// 지금 GPU로 그리고 있는지 (설정을 켜도 Metal을 못 쓰면 false).
     @Published private(set) var gpuActive = false
     @Published private(set) var gpuRendering = Settings.gpuRendering
+    @Published private(set) var theme = Settings.theme
     /// 지금 열린 패널 (한 번에 하나). 열고 30초가 지나면 저절로 닫힌다.
     @Published private(set) var openPanel: PanelKind?
     private var panelOpenedAt = Date.distantPast
@@ -85,6 +86,10 @@ final class WallpaperController: ObservableObject {
             object: nil, queue: .main
         ) { [weak self] _ in self?.rebuild() }
         observePower()
+        if Probe.enabled, let name = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_THEME"],
+           let forced = Theme(rawValue: name) {
+            theme = forced   // Probe: 설정을 건드리지 않고 테마를 본다
+        }
         if enabled { show() }
         // Probe: 메뉴 없이 패널을 열어 확인한다 (AQUARIUM_PROBE_PANEL=roster|mailbox|achievements|sponsor).
         if Probe.enabled, let name = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_PANEL"] {
@@ -172,6 +177,21 @@ final class WallpaperController: ObservableObject {
         }
     }
 
+    /// 테마를 바꾼다 — 색이 렌더러 버퍼·셰이더 팔레트에 박히므로 창을 새로 만든다.
+    func setTheme(_ theme: Theme) {
+        Settings.theme = theme
+        self.theme = theme
+        rebuild()
+    }
+
+    /// 낮·밤 자동 테마는 조명이 바뀌면 다시 칠한다 (1초마다 syncState에서 본다).
+    private func applyThemeIfNeeded() -> Bool {
+        let resolved = theme.resolved(isNight: world?.isNight ?? false)
+        guard resolved != Palette.theme else { return false }
+        Palette.apply(resolved)
+        return true
+    }
+
     /// 렌더러를 바꾼다 — 창을 새로 만들고 어항(World)은 그대로 이어받는다.
     func setGPURendering(_ on: Bool) {
         Settings.gpuRendering = on
@@ -198,6 +218,8 @@ final class WallpaperController: ObservableObject {
         if season != world.season { season = world.season }
         if musicPlaying != effects.isMusicPlaying { musicPlaying = effects.isMusicPlaying }
         if focusing != world.isFocusing { focusing = world.isFocusing }
+        if theme == .automatic, view != nil,
+           theme.resolved(isNight: world.isNight) != Palette.theme { rebuild() }
     }
 
     private func show() {
@@ -312,6 +334,7 @@ final class WallpaperController: ObservableObject {
         guard let screen = Self.pick(from: screens, preferred: selectedDisplayID) else { return }
 
         let visible = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
+        _ = applyThemeIfNeeded()
         let metrics = CellMetrics(pointSize: Self.fontSize(for: screen), scale: screen.backingScaleFactor)
         let view: TankRenderer = Self.makeRenderer(gpu: gpuRendering, visible: visible, metrics: metrics)
         gpuActive = view is MetalTankView
