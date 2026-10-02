@@ -159,7 +159,9 @@ final class TankView: NSView {
         for segment in segments {
             for ch in segment.text {
                 guard col < cols else { return }
-                let wide = Self.isWide(ch)
+                // 터미널 폭 규칙(한글·이모지)에 더해, 대체 폰트가 실제로 넓게 그리는 글자
+                // (✉ 같은 기호가 컬러 이모지로 그려지는 경우)도 2칸을 준다 — 안 그러면 뒤 글자와 겹친다.
+                let wide = Self.isWide(ch) || glyphs[ch].advance > metrics.width * 1.3
                 if ch != " " { pending[base + col] = DrawnCell(ch: ch, color: segment.color, wide: wide) }
                 col += wide ? 2 : 1
             }
