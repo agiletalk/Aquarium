@@ -9,6 +9,8 @@ enum Probe {
     static let path = ProcessInfo.processInfo.environment["AQUARIUM_PROBE"]
     static var enabled: Bool { path != nil }
     static let noVerify = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_NOVERIFY"] != nil
+    struct CellKey: Hashable { let row: Int; let col: Int }
+    static var bigCells: Set<CellKey> = []
     static var cellPixelWidth = 0.0
     static var cellPixelHeight = 0
     private static var verifyCount = 0

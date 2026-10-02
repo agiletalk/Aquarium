@@ -3,7 +3,8 @@ import AquariumCore
 import CoreText
 import IOSurface
 
-/// 한 화면의 어항을 Core Text 글리프로 그린다 (render 층).
+/// CPU 렌더러 — 한 화면의 어항을 Core Text 글리프로 IOSurface에 그린다 (render 층).
+/// GPU 렌더러는 MetalTankView. 어느 쪽을 쓸지는 Settings.gpuRendering.
 /// 셀 크기 = 모노스페이스 글리프 advance × line height. 뷰는 그리드 크기만큼만 만들고
 /// (가장자리·메뉴바·Dock 뒤는 창 배경색), 매 tick **바뀐 셀만** 다시 그린다.
 ///
@@ -21,46 +22,24 @@ import IOSurface
 ///   빠름, 픽셀 행 1개 ≈ 16KB 페이지 1개). 그래서 닿는 행 수를 줄인다 — 버퍼마다 실제로
 ///   그려진 셀을 따로 들고 그 버퍼와 다른 셀만 칠하고, 빈칸이던 셀은 지우지 않으며,
 ///   셀을 픽셀 행 우선으로 훑는다.
-final class TankView: NSView {
-    let metrics: CellMetrics
-    let cols: Int
-    let rows: Int
+final class TankView: NSView, TankRenderer {
+    let cells: CellFrame
     weak var world: World?
 
-    private let glyphs: GlyphCache
-    /// 이번 tick에 화면에 있어야 할 셀 (상태줄 포함, rows × cols).
-    private var target: [DrawnCell]
-    /// 버퍼마다 실제로 그려져 있는 셀. 뒤 버퍼는 이것과 target이 다른 셀만 칠한다.
+    private var metrics: CellMetrics { cells.metrics }
+    private var glyphs: GlyphCache { cells.glyphs }
+    /// 버퍼마다 실제로 그려져 있는 셀. 뒤 버퍼는 이것과 cells가 다른 셀만 칠한다.
     private var drawn: [[DrawnCell]] = []
     private var buffers: [SurfaceBuffer] = []
     private var front = 0
     private var scale: CGFloat = 0
     /// 셀 한 칸의 픽셀 높이 (줄 높이는 정수 포인트라 배율을 곱해도 정수).
     private var cellPixelHeight = 0
-    /// 스칼라 하나로 안 떨어지는 글자(이모지 조합 등)의 번호표.
-    private var interned: [Character: UInt32] = [:]
-    private var internedChars: [Character] = []
-
-    /// 셀 하나의 그린 결과. code는 유니코드 스칼라 값(공백 = 32) 또는 번호표(최상위 비트).
-    fileprivate struct DrawnCell: Equatable {
-        var code: UInt32 = 32
-        var color: UInt8 = 0
-        /// 2칸 폭 글자(상태줄의 한글·이모지) — 2칸 가운데에 그린다.
-        var wide = false
-        var isBlank: Bool { code == 32 }
-    }
 
     init(visibleRect: CGRect, metrics: CellMetrics) {
-        self.metrics = metrics
-        cols = max(1, Int(visibleRect.width / metrics.width))
-        rows = max(1, Int(visibleRect.height / metrics.height))
-        let size = CGSize(width: CGFloat(cols) * metrics.width, height: CGFloat(rows) * metrics.height)
-        let frame = CGRect(x: (visibleRect.midX - size.width / 2).rounded(),
-                           y: (visibleRect.midY - size.height / 2).rounded(),
-                           width: size.width, height: size.height)
-        glyphs = GlyphCache(font: metrics.font)
-        target = Array(repeating: DrawnCell(), count: cols * rows)
-        super.init(frame: frame)
+        let grid = Self.gridFrame(in: visibleRect, metrics: metrics)
+        cells = CellFrame(cols: grid.cols, rows: grid.rows, metrics: metrics)
+        super.init(frame: grid.frame)
 
         let host = CALayer()
         host.backgroundColor = Palette.background
@@ -97,26 +76,9 @@ final class TankView: NSView {
     /// 이번 tick의 상태를 셀로 펼치고, 뒤 버퍼에서 다른 셀만 칠해 앞으로 돌린다.
     func refresh() {
         guard let world else { return }
-        let tc = Probe.now()
-        let grid = world.composeGrid()
-        Probe.add("composeGrid", since: tc)
         let tf = Probe.now()
-        // 셀 색은 반드시 displayColor로 — 밤 감광이 여기서 들어간다. 셀마다 Core를 부르지
-        // 않고 이번 프레임의 256색 표를 displayColor로 한 번 만든다(glow 셀은 감광 없음).
-        let dimmedTable = (0...255).map { world.displayColor(Cell(color: UInt8($0))) }
-        for r in 0..<min(rows - 1, grid.count) {
-            let row = grid[r]
-            let base = r * cols
-            for c in 0..<min(cols, row.count) {
-                let cell = row[c]
-                target[base + c] = cell.ch == " "
-                    ? DrawnCell()
-                    : DrawnCell(code: code(of: cell.ch),
-                                color: cell.glow ? cell.color : dimmedTable[Int(cell.color)])
-            }
-        }
-        layoutStatusLine(world.statusSegments(hints: false))
-        Probe.add("flatten+status", since: tf)
+        cells.update(from: world)
+        Probe.add("compose+flatten", since: tf)
 
         guard buffers.count == 2 else { return }
         let back = 1 - front
@@ -138,7 +100,7 @@ final class TankView: NSView {
         CATransaction.commit()
     }
 
-    /// 버퍼 b에서 target과 다른 셀을 칠하고, 칠한 셀 수를 돌려준다.
+    /// 버퍼 b에서 cells와 다른 셀을 칠하고, 칠한 셀 수를 돌려준다.
     @discardableResult
     private func paint(into b: Int) -> Int {
         let buffer = buffers[b]
@@ -156,7 +118,7 @@ final class TankView: NSView {
             let cell = PixelRect(x0: Int((CGFloat(c) * cellPixelWidth).rounded()),
                                  x1: Int((CGFloat(c + 1) * cellPixelWidth).rounded()),
                                  y0: r * cellPixelHeight, y1: (r + 1) * cellPixelHeight, row: r)
-            let glyph = glyphs[old.code, character(of: old.code)]
+            let glyph = cells.glyph(for: old)
             guard !old.wide, !glyph.ink.isNull, !glyph.ink.isEmpty else { return cell }
             let originX = CGFloat(c) * metrics.width
             let originY = bounds.height - CGFloat(r + 1) * metrics.height + metrics.descent
@@ -168,31 +130,24 @@ final class TankView: NSView {
                              row: r)
         }
         func addGlyph(_ cell: DrawnCell, _ r: Int, _ c: Int) {
-            guard !cell.isBlank else { return }
-            let glyph = glyphs[cell.code, character(of: cell.code)]
-            // 대체 폰트의 한글은 2칸보다 좁다 — 왼쪽에 붙이면 "물 고 기"처럼 벌어진다.
-            let inset = cell.wide ? max(0, (metrics.width * 2 - glyph.advance) / 2) : 0
-            batch.add(glyph, color: cell.color,
-                      at: CGPoint(x: CGFloat(c) * metrics.width + inset,
-                                  y: bounds.height - CGFloat(r + 1) * metrics.height + metrics.descent),
-                      row: r, band: rowBand(r))
+            cells.addGlyph(cell, row: r, col: c, to: &batch)
         }
 
         // 수조 그리드: 다른 셀만. 그 버퍼에서 빈칸이던 셀은 이미 배경색이라 지우지 않는다.
-        for i in 0..<statusBase where drawn[b][i] != target[i] {
+        for i in 0..<statusBase where drawn[b][i] != cells.cells[i] {
             let r = i / cols, c = i % cols
             if !drawn[b][i].isBlank { clears.append(clearRect(drawn[b][i], r, c)) }
-            addGlyph(target[i], r, c)
-            drawn[b][i] = target[i]
+            addGlyph(cells.cells[i], r, c)
+            drawn[b][i] = cells.cells[i]
             count += 1
         }
         // 상태줄은 2칸 글자가 섞여 셀 단위로는 옆 칸에 번진 잉크가 남는다 — 바뀌면 줄 전체.
-        if (statusBase..<(rows * cols)).contains(where: { drawn[b][$0] != target[$0] }) {
+        if (statusBase..<(rows * cols)).contains(where: { drawn[b][$0] != cells.cells[$0] }) {
             clears.append(PixelRect(x0: 0, x1: buffer.pixelWidth,
                                     y0: (rows - 1) * cellPixelHeight, y1: rows * cellPixelHeight, row: rows - 1))
             for c in 0..<cols {
-                addGlyph(target[statusBase + c], rows - 1, c)
-                drawn[b][statusBase + c] = target[statusBase + c]
+                addGlyph(cells.cells[statusBase + c], rows - 1, c)
+                drawn[b][statusBase + c] = cells.cells[statusBase + c]
             }
             count += cols
         }
@@ -211,76 +166,11 @@ final class TankView: NSView {
         return count
     }
 
-    /// 행 r의 띠 (포인트, 좌하단 원점).
-    private func rowBand(_ r: Int) -> CGRect {
-        CGRect(x: 0, y: bounds.height - CGFloat(r + 1) * metrics.height,
-               width: bounds.width, height: metrics.height)
-    }
-
     /// Probe 전용: 앞 버퍼를 같은 상태로 처음부터 다시 그린 결과와 픽셀 단위로 비교한다.
     /// 부분 갱신이 잔상을 남기면 여기서 잡힌다.
     private func verifyFront() -> (mismatched: Int, total: Int) {
-        guard let fresh = SurfaceBuffer(size: bounds.size, scale: scale) else { return (0, 0) }
-        var batch = GlyphBatch()
-        let state = drawn[front]
-        for r in 0..<rows {
-            for c in 0..<cols {
-                let cell = state[r * cols + c]
-                guard !cell.isBlank else { continue }
-                let glyph = glyphs[cell.code, character(of: cell.code)]
-                let inset = cell.wide ? max(0, (metrics.width * 2 - glyph.advance) / 2) : 0
-                batch.add(glyph, color: cell.color,
-                          at: CGPoint(x: CGFloat(c) * metrics.width + inset,
-                                      y: bounds.height - CGFloat(r + 1) * metrics.height + metrics.descent),
-                          row: r, band: rowBand(r))
-            }
-        }
-        fresh.draw { batch.draw(in: $0) }
+        guard let fresh = cells.referenceImage(of: drawn[front], scale: scale) else { return (0, 0) }
         return fresh.mismatches(against: buffers[front])
-    }
-
-    /// 상태줄 — 터미널처럼 그리드 마지막 행. 한글·이모지는 2칸을 차지한다.
-    private func layoutStatusLine(_ segments: [StatusSegment]) {
-        let base = (rows - 1) * cols
-        for c in 0..<cols { target[base + c] = DrawnCell() }
-        var col = 0
-        for segment in segments {
-            for ch in segment.text {
-                guard col < cols else { return }
-                let code = code(of: ch)
-                // 터미널 폭 규칙(한글·이모지)에 더해, 대체 폰트가 실제로 넓게 그리는 글자
-                // (✉ 같은 기호가 컬러 이모지로 그려지는 경우)도 2칸을 준다 — 안 그러면 뒤 글자와 겹친다.
-                let wide = Self.isWide(ch) || glyphs[code, ch].advance > metrics.width * 1.3
-                if ch != " " { target[base + col] = DrawnCell(code: code, color: segment.color, wide: wide) }
-                col += wide ? 2 : 1
-            }
-        }
-    }
-
-    /// 글자 → 셀 코드. 어항 그리드는 거의 ASCII라 asciiValue로 바로 끝난다.
-    private func code(of ch: Character) -> UInt32 {
-        if let a = ch.asciiValue { return UInt32(a) }
-        let scalars = ch.unicodeScalars
-        if scalars.count == 1, let s = scalars.first { return s.value }
-        if let id = interned[ch] { return id }
-        let id = 0x8000_0000 | UInt32(internedChars.count)
-        interned[ch] = id
-        internedChars.append(ch)
-        return id
-    }
-
-    private func character(of code: UInt32) -> Character {
-        code & 0x8000_0000 != 0
-            ? internedChars[Int(code & 0x7FFF_FFFF)]
-            : Character(UnicodeScalar(code) ?? " ")
-    }
-
-    /// 터미널에서 2칸을 차지하는 문자 — Core의 TextWidth(한글)에 이모지를 더한다.
-    /// 상태줄은 터미널에서 자동 줄바꿈 없이 잘리므로 폭 계산이 어긋나도 뒤만 밀린다.
-    private static func isWide(_ ch: Character) -> Bool {
-        if TextWidth.displayWidth(String(ch)) > 1 { return true }
-        guard let scalar = ch.unicodeScalars.first else { return false }
-        return scalar.properties.isEmojiPresentation
     }
 }
 
@@ -395,6 +285,35 @@ final class SurfaceBuffer {
             Probe.log("  잔상(앞 버퍼에만 잉크) \(ghost)px · 셀 안 x위치 \(edgeX.sorted { $0.value > $1.value }.prefix(6)) · y위치 \(edgeY.sorted { $0.value > $1.value }.prefix(6))")
         }
         return (bad, pixelWidth * pixelHeight)
+    }
+
+    /// Probe 전용: GPU 결과(BGRA 바이트)와 비교 — 불일치 픽셀, 최대 채널 차이, 2 이상 차이 픽셀.
+    func compare(bgra pixels: [UInt32], width: Int, height: Int) -> (mismatched: Int, maxDiff: Int, bigDiffs: Int) {
+        surface.lock(options: .readOnly, seed: nil)
+        defer { surface.unlock(options: .readOnly, seed: nil) }
+        let a = surface.baseAddress.assumingMemoryBound(to: UInt32.self)
+        let rowA = surface.bytesPerRow / 4
+        var bad = 0, maxDiff = 0, big = 0
+        for y in 0..<min(height, pixelHeight) {
+            for x in 0..<min(width, pixelWidth) {
+                let p = a[y * rowA + x], q = pixels[y * width + x]
+                guard p != q else { continue }
+                bad += 1
+                var d = 0
+                for shift in [0, 8, 16] {
+                    d = max(d, abs(Int((p >> UInt32(shift)) & 0xFF) - Int((q >> UInt32(shift)) & 0xFF)))
+                }
+                maxDiff = max(maxDiff, d)
+                if d >= 2 {
+                    big += 1
+                    if Probe.cellPixelHeight > 0 {
+                        Probe.bigCells.insert(Probe.CellKey(row: y / Probe.cellPixelHeight,
+                                                            col: Int(Double(x) / Probe.cellPixelWidth)))
+                    }
+                }
+            }
+        }
+        return (bad, maxDiff, big)
     }
 
     func draw(_ body: (CGContext) -> Void) {

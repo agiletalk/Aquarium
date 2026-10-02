@@ -72,6 +72,10 @@ private struct AquariumMenu: View {
                 ForEach(wallpaper.displays) { Text($0.name).tag($0.id) }
             }
         }
+        if wallpaper.gpuAvailable {
+            Toggle(t("GPU 렌더링", "GPU Rendering"), isOn: Binding(
+                get: { wallpaper.gpuRendering }, set: { wallpaper.setGPURendering($0) }))
+        }
         Picker(t("언어", "Language"), selection: Binding(
             get: { L10n.isKorean }, set: { wallpaper.setKorean($0) })) {
             Text("한국어").tag(true)

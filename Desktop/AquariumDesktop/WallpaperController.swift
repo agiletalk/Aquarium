@@ -1,6 +1,7 @@
 import AppKit
 import AquariumCore
 import Combine
+import Metal
 
 /// 고른 모니터 하나의 바탕화면 아이콘 **뒤** 레이어에 borderless 창과 어항을 띄운다.
 /// 마우스는 전부 통과시키고, 모든 Space에 고정한다.
@@ -42,10 +43,15 @@ final class WallpaperController: ObservableObject {
     @Published private(set) var musicPlaying = false
     @Published private(set) var focusing = false
     @Published private(set) var fishCap = Settings.fishCap
+    /// 지금 GPU로 그리고 있는지 (설정을 켜도 Metal을 못 쓰면 false).
+    @Published private(set) var gpuActive = false
+    @Published private(set) var gpuRendering = Settings.gpuRendering
+    /// 이 맥에서 Metal을 쓸 수 있는지.
+    let gpuAvailable = MTLCreateSystemDefaultDevice() != nil
 
     private var world: World?
     private var window: NSWindow?
-    private var view: TankView?
+    private var view: TankRenderer?
     private var timer: Timer?
     private var observer: NSObjectProtocol?
     private var started = false
@@ -108,6 +114,13 @@ final class WallpaperController: ObservableObject {
         guard world?.isFocusing == true else { return }
         world?.toggleFocus()
         syncState()
+    }
+
+    /// 렌더러를 바꾼다 — 창을 새로 만들고 어항(World)은 그대로 이어받는다.
+    func setGPURendering(_ on: Bool) {
+        Settings.gpuRendering = on
+        gpuRendering = on
+        rebuild()
     }
 
     /// 정원을 바꾼다. 줄여도 있는 물고기는 그대로 — 번식만 멈춘다.
@@ -242,8 +255,9 @@ final class WallpaperController: ObservableObject {
         guard let screen = Self.pick(from: screens, preferred: selectedDisplayID) else { return }
 
         let visible = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
-        let view = TankView(visibleRect: visible,
-                            metrics: CellMetrics(pointSize: Self.fontSize(for: screen), scale: screen.backingScaleFactor))
+        let metrics = CellMetrics(pointSize: Self.fontSize(for: screen), scale: screen.backingScaleFactor)
+        let view: TankRenderer = Self.makeRenderer(gpu: gpuRendering, visible: visible, metrics: metrics)
+        gpuActive = view is MetalTankView
         if let world {
             if world.cols != view.cols || world.rows != view.rows {
                 world.resize(cols: view.cols, rows: view.rows)
@@ -258,6 +272,16 @@ final class WallpaperController: ObservableObject {
         window = makeWindow(for: screen, tank: view)
         self.view = view
         syncState()
+    }
+
+    /// AQUARIUM_RENDERER=cpu|metal은 측정용으로 설정을 덮어쓴다.
+    private static func makeRenderer(gpu: Bool, visible: CGRect, metrics: CellMetrics) -> TankRenderer {
+        let forced = ProcessInfo.processInfo.environment["AQUARIUM_RENDERER"]
+        if forced != "cpu", gpu || forced == "metal",
+           let metal = MetalTankView(visibleRect: visible, metrics: metrics) {
+            return metal
+        }
+        return TankView(visibleRect: visible, metrics: metrics)
     }
 
     /// 선택한 모니터 → 없으면 내장 디스플레이 → 없으면 첫 화면.
@@ -276,7 +300,7 @@ final class WallpaperController: ObservableObject {
                      restoring: SaveStore.load(from: Self.saveURL), effects: effects)
     }
 
-    private func makeWindow(for screen: NSScreen, tank: TankView) -> NSWindow {
+    private func makeWindow(for screen: NSScreen, tank: NSView) -> NSWindow {
         let window = NSWindow(contentRect: screen.frame, styleMask: .borderless,
                               backing: .buffered, defer: false)
         window.setFrame(screen.frame, display: false)

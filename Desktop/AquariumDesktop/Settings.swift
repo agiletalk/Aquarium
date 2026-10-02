@@ -1,5 +1,6 @@
 import AquariumCore
 import Foundation
+import Metal
 
 /// UserDefaults에 남기는 앱 설정. 조명·계절은 어항의 속성이라 세이브에 들어간다.
 enum Settings {
@@ -18,6 +19,16 @@ enum Settings {
             defaults.set(newValue, forKey: "korean")
             L10n.isKorean = newValue
         }
+    }
+
+    /// GPU(Metal) 렌더링. 꺼져 있거나 Metal을 쓸 수 없으면 CPU(IOSurface) 렌더러.
+    ///
+    /// 기본값은 통합 메모리(Apple Silicon)일 때만 켬 — 측정(Release, 내장 Retina)에서 앱 CPU가
+    /// 평균 3.2% → 1.85%로 줄고 메모리는 99 → 124MB. 외장 GPU를 12.5Hz로 깨우는 건
+    /// 이득이 불분명해 Intel 맥은 CPU 렌더러로 둔다.
+    static var gpuRendering: Bool {
+        get { defaults.object(forKey: "gpuRendering") as? Bool ?? (MTLCreateSystemDefaultDevice()?.hasUnifiedMemory ?? false) }
+        set { defaults.set(newValue, forKey: "gpuRendering") }
     }
 
     /// 정원 상한 (메뉴: 작게 40 / 보통 80 / 크게 120). 기본은 lounge 그대로 120.
