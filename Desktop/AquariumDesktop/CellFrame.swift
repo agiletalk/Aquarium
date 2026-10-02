@@ -107,9 +107,13 @@ final class CellFrame {
         }
     }
 
-    /// 셀 폭 — 상태줄과 같은 규칙(터미널 폭 + 대체 폰트가 실제로 넓게 그리는 글자).
+    /// 셀 폭 — 터미널 폭 규칙(한글·이모지)에 더해, 대체 폰트가 실제로 넓게 그리는 글자도 2칸.
+    /// 잉크가 셀 오른쪽을 넘는 글자(예: 대체 폰트의 ✔)도 2칸으로 보낸다 — 1칸 글자는 셀 폭으로만
+    /// 지워서 넘친 잉크가 이웃 칸에 남는다. 2칸 경로는 두 칸으로 잘라 그리고 두 칸을 지운다.
     private func width(of ch: Character) -> Int {
-        Self.isWide(ch) || glyphs[code(of: ch), ch].advance > metrics.width * 1.3 ? 2 : 1
+        if Self.isWide(ch) { return 2 }
+        let glyph = glyphs[code(of: ch), ch]
+        return glyph.advance > metrics.width * 1.3 || glyph.ink.maxX > metrics.width ? 2 : 1
     }
 
     func glyph(for cell: DrawnCell) -> GlyphCache.Entry {
@@ -170,7 +174,7 @@ final class CellFrame {
                 let code = code(of: ch)
                 // 터미널 폭 규칙(한글·이모지)에 더해, 대체 폰트가 실제로 넓게 그리는 글자
                 // (✉ 같은 기호가 컬러 이모지로 그려지는 경우)도 2칸을 준다 — 안 그러면 뒤 글자와 겹친다.
-                let wide = Self.isWide(ch) || glyphs[code, ch].advance > metrics.width * 1.3
+                let wide = width(of: ch) == 2
                 if ch != " " { cells[base + col] = DrawnCell(code: code, color: segment.color, wide: wide) }
                 col += wide ? 2 : 1
             }

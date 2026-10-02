@@ -281,6 +281,7 @@ final class WallpaperController: ObservableObject {
     private(set) var rendering = true
     private var screenLocked = false
     private var displaysAsleep = false
+    private var screenSaver = false
     private var ticks = 0
     private var powerObservers: [(NotificationCenter, NSObjectProtocol)] = []
 
@@ -301,6 +302,9 @@ final class WallpaperController: ObservableObject {
         on(workspace, NSWorkspace.sessionDidBecomeActiveNotification) { $0.screenLocked = false }
         on(distributed, Notification.Name("com.apple.screenIsLocked")) { $0.screenLocked = true }
         on(distributed, Notification.Name("com.apple.screenIsUnlocked")) { $0.screenLocked = false }
+        // 스크린세이버는 레벨이 높아 창 목록 덮임률(layer 0만 본다)에 안 잡힌다.
+        on(distributed, Notification.Name("com.apple.screensaver.didstart")) { $0.screenSaver = true }
+        on(distributed, Notification.Name("com.apple.screensaver.didstop")) { $0.screenSaver = false }
     }
 
     /// 바탕화면 레벨 창은 NSWindow.occlusionState가 다른 앱 창에 100% 덮여도 .visible로
@@ -310,7 +314,7 @@ final class WallpaperController: ObservableObject {
         let grid = window.convertToScreen(view.convert(view.bounds, to: nil))
         // Probe 중에는 가려져도 계속 그린다 — 렌더 비용은 보이든 말든 같다.
         let covered = !Probe.enabled && DesktopCoverage.fraction(of: grid, excludingPID: getpid()) >= 0.98
-        let shouldRender = !covered && !screenLocked && !displaysAsleep
+        let shouldRender = !covered && !screenLocked && !displaysAsleep && !screenSaver
         guard shouldRender != rendering else { return }
         rendering = shouldRender
         if rendering { view.refresh() }
@@ -334,17 +338,20 @@ final class WallpaperController: ObservableObject {
         guard let screen = Self.pick(from: screens, preferred: selectedDisplayID) else { return }
 
         let visible = screen.visibleFrame.offsetBy(dx: -screen.frame.minX, dy: -screen.frame.minY)
-        _ = applyThemeIfNeeded()
         let metrics = CellMetrics(pointSize: Self.fontSize(for: screen), scale: screen.backingScaleFactor)
-        let view: TankRenderer = Self.makeRenderer(gpu: gpuRendering, visible: visible, metrics: metrics)
-        gpuActive = view is MetalTankView
+        // 어항을 먼저 맞춘다 — 낮·밤 자동 테마는 어항의 조명으로 정해지고, 테마는 렌더러를
+        // 만들 때 박힌다. 순서가 반대면 첫 실행 밤에 렌더러를 한 번 더 만든다.
+        let grid = TankView.gridFrame(in: visible, metrics: metrics)
         if let world {
-            if world.cols != view.cols || world.rows != view.rows {
-                world.resize(cols: view.cols, rows: view.rows)
+            if world.cols != grid.cols || world.rows != grid.rows {
+                world.resize(cols: grid.cols, rows: grid.rows)
             }
         } else {
-            world = makeWorld(cols: view.cols, rows: view.rows)
+            world = makeWorld(cols: grid.cols, rows: grid.rows)
         }
+        _ = applyThemeIfNeeded()
+        let view: TankRenderer = Self.makeRenderer(gpu: gpuRendering, visible: visible, metrics: metrics)
+        gpuActive = view is MetalTankView
         view.world = world
         view.panel = currentPanel()
         view.refresh()

@@ -115,15 +115,12 @@ final class MetalTankView: NSView, TankRenderer {
                                       color: cell.color,
                                       flags: (cell.wide ? 1 : 0) | (slot.isColor ? 2 : 0)))
         }
-        lastDrawn = cells.cells
         Probe.add("instances", since: tb, count: instances.count)
 
         let te = Probe.now()
         inFlight.wait()
-        let buffer = instanceBuffer(capacity: instances.count)
-        if !instances.isEmpty {
-            instances.withUnsafeBytes { buffer.contents().copyMemory(from: $0.baseAddress!, byteCount: $0.count) }
-        }
+        // 드로어블·커맨드 버퍼를 먼저 확보한다. 못 받으면 아무 상태도 바꾸지 않는다 — 안 그린 프레임을
+        // "그렸다"고 기록하면 정적인 화면이 낡은 채로 남고, 링 버퍼만 돌면 GPU가 읽는 버퍼를 덮을 수 있다.
         guard let drawable = metalLayer.nextDrawable(),
               let commands = queue.makeCommandBuffer() else { inFlight.signal(); return }
         let pass = MTLRenderPassDescriptor()
@@ -134,6 +131,11 @@ final class MetalTankView: NSView, TankRenderer {
         pass.colorAttachments[0].clearColor = MTLClearColor(red: Double(bg.x), green: Double(bg.y),
                                                             blue: Double(bg.z), alpha: 1)
         guard let encoder = commands.makeRenderCommandEncoder(descriptor: pass) else { inFlight.signal(); return }
+        let buffer = instanceBuffer(capacity: instances.count)
+        if !instances.isEmpty {
+            instances.withUnsafeBytes { buffer.contents().copyMemory(from: $0.baseAddress!, byteCount: $0.count) }
+        }
+        lastDrawn = cells.cells
         var uniforms = Uniforms(
             viewport: SIMD2(Float(drawable.texture.width), Float(drawable.texture.height)),
             cellSize: SIMD2(Float(cells.metrics.width * scale), Float(cells.metrics.height * scale)),
@@ -203,7 +205,17 @@ final class MetalTankView: NSView, TankRenderer {
         return SIMD4(Float(c[0]), Float(c[1]), Float(c[2]), 1)
     }
 
+    /// 렌더러를 바꾸거나 테마·모니터를 바꿀 때마다 뷰를 새로 만드는데, 셰이더 컴파일은 수십 ms라 한 번만 한다.
+    private static var cachedPipeline: (device: ObjectIdentifier, state: MTLRenderPipelineState)?
+
     private static func makePipeline(_ device: MTLDevice) -> MTLRenderPipelineState? {
+        if let cached = cachedPipeline, cached.device == ObjectIdentifier(device) { return cached.state }
+        guard let state = compilePipeline(device) else { return nil }
+        cachedPipeline = (ObjectIdentifier(device), state)
+        return state
+    }
+
+    private static func compilePipeline(_ device: MTLDevice) -> MTLRenderPipelineState? {
         guard let library = try? device.makeLibrary(source: shaderSource, options: nil) else { return nil }
         let descriptor = MTLRenderPipelineDescriptor()
         descriptor.vertexFunction = library.makeFunction(name: "tankVertex")
