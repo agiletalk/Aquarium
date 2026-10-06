@@ -97,6 +97,13 @@ final class WallpaperController: ObservableObject {
                                               "achievements": .achievements, "sponsor": .sponsor]
             if let kind = kinds[name] { togglePanel(kind) }
         }
+        // Probe: 메뉴 없이 N초 뒤 사진을 찍는다 — 클립보드 결과 확인용 (AQUARIUM_PROBE_PHOTO=<초>).
+        if Probe.enabled, let text = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_PHOTO"],
+           let seconds = Double(text), seconds > 0 {
+            Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.copyPhoto() }
+            }
+        }
         // Probe: 메뉴 없이 N초마다 먹이를 준다 — 계절 먹이(수박·알밤) 확인용 (AQUARIUM_PROBE_FEED=<초>).
         if Probe.enabled, let text = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_FEED"],
            let seconds = Double(text), seconds > 0 {
@@ -109,6 +116,19 @@ final class WallpaperController: ObservableObject {
     func save() { world?.writeSave() }
 
     // MARK: - 메뉴 동작 (터미널의 f·g·n·t·m 키)
+
+    /// 지금 어항을 PNG로 클립보드에 — 아이콘·위젯 없이 셀 상태에서 직접 그린다(상태줄 제외).
+    func copyPhoto() {
+        guard let view, let world else { return }
+        let scale = view.window?.backingScaleFactor ?? 2
+        guard let png = TankPhoto.png(of: view.cells, scale: scale) else { return }
+        let board = NSPasteboard.general
+        board.clearContents()
+        board.setData(png, forType: .png)
+        TankPhoto.playShutter()
+        world.announce(t("📸 어항 사진을 클립보드에 담았어요 — 붙여넣어 자랑해 보세요!",
+                         "📸 Tank photo copied — paste it anywhere to show off!"))
+    }
 
     func feed() { world?.feed() }
     func feedLive() { world?.feedLive() }

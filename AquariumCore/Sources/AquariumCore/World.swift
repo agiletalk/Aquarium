@@ -830,6 +830,11 @@ public final class World {
         messageUntil = now + 4
     }
 
+    /// 앱이 상태줄에 잠깐 알림을 띄운다(데스크톱의 사진 찍기 등 World 밖 동작).
+    public func announce(_ text: String) {
+        post(text)
+    }
+
     public func toggleRoster() {
         rosterOpen.toggle()
         if rosterOpen { mailboxOpen = false; sponsorOpen = false }

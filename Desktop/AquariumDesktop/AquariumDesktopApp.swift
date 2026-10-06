@@ -74,6 +74,7 @@ private struct AquariumMenu: View {
             if wallpaper.openPanel == .sponsor {
                 Button(t("후원 페이지 열기", "Open Support Page")) { wallpaper.openSponsorPage() }
             }
+            Button(t("어항 사진 찍기", "Copy Tank Photo")) { wallpaper.copyPhoto() }
         }
         .disabled(!wallpaper.enabled)
 
