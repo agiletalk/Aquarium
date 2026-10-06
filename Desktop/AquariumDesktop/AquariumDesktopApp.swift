@@ -75,6 +75,8 @@ private struct AquariumMenu: View {
                 Button(t("후원 페이지 열기", "Open Support Page")) { wallpaper.openSponsorPage() }
             }
             Button(t("어항 사진 찍기", "Copy Tank Photo")) { wallpaper.copyPhoto() }
+            Toggle(t("스크린샷 먹이", "Screenshot Treats"), isOn: Binding(
+                get: { wallpaper.screenshotFood }, set: { wallpaper.setScreenshotFood($0) }))
         }
         .disabled(!wallpaper.enabled)
 

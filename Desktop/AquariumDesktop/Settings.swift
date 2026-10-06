@@ -44,6 +44,13 @@ enum Settings {
     }
     static let fishCapChoices = [40, 80, 120]
 
+    /// 스크린샷을 찍으면 어항에 먹이가 떨어진다. 기본 켬 — 저장 폴더가 바탕화면이면 첫 실행 때
+    /// 폴더 접근 권한을 한 번 묻고, 거절하면 조용히 꺼진다.
+    static var screenshotFood: Bool {
+        get { defaults.object(forKey: "screenshotFood") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "screenshotFood") }
+    }
+
     /// 첫 실행 때 터미널 어항 가져오기를 이미 물어봤는지.
     static var importAsked: Bool {
         get { defaults.bool(forKey: "importAsked") }

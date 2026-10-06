@@ -780,6 +780,22 @@ public final class World {
         }
     }
 
+    /// 데스크톱 "스크린샷 먹이" — 스크린샷을 찍은 자리 근처 수면에서 먹이 몇 알이 떨어진다.
+    /// column이 nil이면(어항 밖 화면을 찍었으면) 아무 데나.
+    public func dropScreenshotTreat(nearColumn column: Int?) {
+        guard cols > 8, food.count < 60 else { return }
+        let center = Double(column.map { min(max(3, $0), cols - 4) } ?? Int.random(in: 3...(cols - 4)))
+        let count = Int.random(in: 3...5)
+        bump("fed", count)
+        for _ in 0..<count {
+            food.append(Food(x: min(max(2, center + Double.random(in: -3...3)), Double(cols - 3)),
+                             y: Double(surfaceRow + 1),
+                             vy: Double.random(in: 0.12...0.28),
+                             restingSince: nil))
+        }
+        post(L10n.screenshotTreat)
+    }
+
     // MARK: - Focus (pomodoro)
 
     public func startFocus(minutes: Int) {

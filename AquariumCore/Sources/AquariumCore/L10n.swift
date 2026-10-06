@@ -166,6 +166,7 @@ public enum L10n {
     public static var octopusVanished: String { t("문어가 먹물을 뿜고 사라졌어요!", "The octopus squirted ink and vanished!") }
     public static var sunfishDrifting: String { t("개복치가 둥실둥실 떠내려와요…", "A sunfish is drifting lazily by…") }
     public static var shadSchool: String { t("가을 전어 떼가 휙 지나가요! 고소한 냄새…", "A school of autumn shad darts by! Smells delicious…") }
+    public static var screenshotTreat: String { t("📸 찰칵! 셔터 소리에 먹이가 떨어졌어요", "📸 Click! The shutter shook loose some food") }
     public static var chestnutDropped: String { t("알밤 한 톨을 떨어뜨렸어요! 🌰", "Dropped a chestnut! 🌰") }
     public static var halloween: String { t("해피 할로윈! 해파리들이 호박 분장을 했어요 🎃", "Happy Halloween! The jellyfish dressed up as pumpkins 🎃") }
 

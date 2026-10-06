@@ -47,6 +47,8 @@ final class WallpaperController: ObservableObject {
     @Published private(set) var gpuActive = false
     @Published private(set) var gpuRendering = Settings.gpuRendering
     @Published private(set) var theme = Settings.theme
+    /// 스크린샷을 찍으면 먹이가 떨어지는지.
+    @Published private(set) var screenshotFood = Settings.screenshotFood
     /// 지금 열린 패널 (한 번에 하나). 열고 30초가 지나면 저절로 닫힌다.
     @Published private(set) var openPanel: PanelKind?
     private var panelOpenedAt = Date.distantPast
@@ -63,6 +65,9 @@ final class WallpaperController: ObservableObject {
     private var observer: NSObjectProtocol?
     private var started = false
     private let effects = DesktopEffects()
+    private let screenshots = ScreenshotWatcher()
+    /// 메뉴로 직접 켰는지 — 권한 거절 안내는 이때만 띄운다(첫 실행 자동 시작은 조용히 꺼진다).
+    private var screenshotToggledByUser = false
     private static let displayKey = "displayUUID"
 
     init() {
@@ -86,6 +91,9 @@ final class WallpaperController: ObservableObject {
             object: nil, queue: .main
         ) { [weak self] _ in self?.rebuild() }
         observePower()
+        screenshots.onCapture = { [weak self] rect in self?.screenshotTaken(rect) }
+        screenshots.onDenied = { [weak self] in self?.screenshotFolderDenied() }
+        if screenshotFood { screenshots.start() }
         if Probe.enabled, let name = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_THEME"],
            let forced = Theme(rawValue: name) {
             theme = forced   // Probe: 설정을 건드리지 않고 테마를 본다
@@ -224,6 +232,40 @@ final class WallpaperController: ObservableObject {
         Settings.gpuRendering = on
         gpuRendering = on
         rebuild()
+    }
+
+    func setScreenshotFood(_ on: Bool) {
+        Settings.screenshotFood = on
+        screenshotFood = on
+        screenshotToggledByUser = true
+        on ? screenshots.start() : screenshots.stop()
+    }
+
+    /// 새 스크린샷 → 찍은 영역 가운데가 어항 화면 위면 그 열 근처에, 아니면 아무 데나 먹이.
+    private func screenshotTaken(_ rect: CGRect?) {
+        guard enabled, let world else { return }
+        world.dropScreenshotTreat(nearColumn: rect.flatMap(column(under:)))
+    }
+
+    /// 전역 좌표(주 화면 왼쪽 위 원점) 사각형의 가운데가 놓인 어항 열. 어항 화면 밖이면 nil.
+    private func column(under rect: CGRect) -> Int? {
+        guard let window, let view, let primary = NSScreen.screens.first else { return nil }
+        // Cocoa 전역 좌표는 주 화면 왼쪽 아래가 원점이다.
+        let mid = CGPoint(x: rect.midX, y: primary.frame.height - rect.midY)
+        guard window.frame.contains(mid) else { return nil }
+        let x = mid.x - window.frame.minX - view.frame.minX
+        guard x >= 0 else { return nil }
+        let col = Int(x / view.cells.metrics.width)
+        return col < view.cols ? col : nil
+    }
+
+    /// 폴더를 못 열었다(바탕화면 접근 거절 등) → 조용히 끈다. 메뉴로 켠 경우에만 방법을 알려 준다.
+    private func screenshotFolderDenied() {
+        Settings.screenshotFood = false
+        screenshotFood = false
+        guard screenshotToggledByUser else { return }
+        world?.announce(t("스크린샷 폴더를 볼 수 없어요 — 시스템 설정 › 개인정보 보호 및 보안 › 파일 및 폴더에서 허용해 주세요",
+                          "Can't see the screenshot folder — allow it in System Settings › Privacy & Security › Files and Folders"))
     }
 
     /// 정원을 바꾼다. 줄여도 있는 물고기는 그대로 — 번식만 멈춘다.
