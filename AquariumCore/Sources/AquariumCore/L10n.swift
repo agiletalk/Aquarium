@@ -152,11 +152,12 @@ public enum L10n {
     public static var lightingNight: String { t("조명: 밤", "Lights: night") }
     public static var lightingDay: String { t("조명: 낮", "Lights: day") }
 
-    public static func seasonAuto(isSummer: Bool) -> String {
-        t("계절: 자동 (지금은 \(isSummer ? "여름" : "평소"))",
-          "Season: auto (currently \(isSummer ? "summer" : "off-season"))")
+    public static func seasonAuto(isSummer: Bool, isAutumn: Bool) -> String {
+        t("계절: 자동 (지금은 \(isSummer ? "여름" : isAutumn ? "가을" : "평소"))",
+          "Season: auto (currently \(isSummer ? "summer" : isAutumn ? "autumn" : "off-season"))")
     }
     public static var seasonSummer: String { t("계절: 여름", "Season: summer") }
+    public static var seasonAutumn: String { t("계절: 가을", "Season: autumn") }
     public static var seasonOff: String { t("계절: 끄기", "Season: off") }
 
     public static var whalePassing: String { t("저 멀리 고래가 지나가요…", "A whale is passing by in the distance…") }
@@ -164,6 +165,9 @@ public enum L10n {
     public static var octopusAppeared: String { t("문어가 나타났어요!", "An octopus appeared!") }
     public static var octopusVanished: String { t("문어가 먹물을 뿜고 사라졌어요!", "The octopus squirted ink and vanished!") }
     public static var sunfishDrifting: String { t("개복치가 둥실둥실 떠내려와요…", "A sunfish is drifting lazily by…") }
+    public static var shadSchool: String { t("가을 전어 떼가 휙 지나가요! 고소한 냄새…", "A school of autumn shad darts by! Smells delicious…") }
+    public static var chestnutDropped: String { t("알밤 한 톨을 떨어뜨렸어요! 🌰", "Dropped a chestnut! 🌰") }
+    public static var halloween: String { t("해피 할로윈! 해파리들이 호박 분장을 했어요 🎃", "Happy Halloween! The jellyfish dressed up as pumpkins 🎃") }
 
     public static var musicOn: String { t("음악을 켰어요 (DOS 감성 칩튠)", "Music on (DOS-era chiptunes)") }
     public static var musicOff: String { t("음악을 껐어요", "Music off") }
@@ -217,6 +221,7 @@ public enum L10n {
           "Visitors   whale \(whale) · turtle \(turtle) · octopus \(octopus)")
     }
     public static func rosterSunfish(_ n: Int) -> String { t("여름 손님   개복치 \(n)", "Summer guest   sunfish \(n)") }
+    public static func rosterShad(_ n: Int) -> String { t("가을 손님   전어 떼 \(n)", "Autumn guest   shad school \(n)") }
     public static var rosterEnlarge: String { t("도감을 보려면 창을 키워주세요", "Enlarge the window to see the log") }
 
     // MARK: - CLI
@@ -238,8 +243,8 @@ public enum L10n {
         t("알 수 없는 옵션: \(option)\n--help 를 참고하세요.", "Unknown option: \(option)\nSee --help.")
     }
     public static func invalidSeason(_ value: String) -> String {
-        t("--season 값이 잘못됐어요: \(value.isEmpty ? "(값 없음)" : value)\n사용 가능: auto | none | summer",
-          "Invalid --season value: \(value.isEmpty ? "(missing)" : value)\nAvailable: auto | none | summer")
+        t("--season 값이 잘못됐어요: \(value.isEmpty ? "(값 없음)" : value)\n사용 가능: auto | none | summer | autumn",
+          "Invalid --season value: \(value.isEmpty ? "(missing)" : value)\nAvailable: auto | none | summer | autumn")
     }
     public static var helpText: String {
         isKorean
@@ -249,7 +254,7 @@ public enum L10n {
             사용법:
               aquarium              어항 실행
               aquarium --focus [분]  뽀모도로 집중 모드로 시작 (기본 25분)
-              aquarium --season <값>  계절 테마 강제 (auto|none|summer)
+              aquarium --season <값>  계절 테마 강제 (auto|none|summer|autumn)
               aquarium --lounge     전시 모드 (무인 상설 전시용)
               aquarium --clap       박수 두 번에 물고기가 반응 (마이크 권한 필요)
                                     --lounge와 함께 쓰면 전시 모드 + 박수
@@ -268,7 +273,7 @@ public enum L10n {
               f  먹이 주기          g  생먹이(브라인슈림프)
               p  집중 시작/중단     i  도감
               n  조명 (자동 → 밤 → 낮)
-              t  계절 (자동 → 여름 → 끄기)
+              t  계절 (자동 → 여름 → 가을 → 끄기)
               m  음악 (칩튠 플레이리스트 켜기/끄기)
               q  종료 (자동 저장)   마우스 클릭: 물고기 만지기
 
@@ -287,7 +292,7 @@ public enum L10n {
 
             환경변수:
               AQUARIUM_LANG=ko|en                     언어 강제 지정
-              AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   손님이 자주 옵니다 (이스터에그)
+              AQUARIUM_VISITOR=whale|turtle|octopus|sunfish|shad   손님이 자주 옵니다 (이스터에그)
               AQUARIUM_LOUNGE_QR=<주소>               전시 모드 QR이 가리킬 주소
               AQUARIUM_CLAP_THRESHOLD=<0~1>           박수 감지 임계 (기본 0.018)
                                                       둔하면 낮추고 오탐이 잦으면 올립니다
@@ -298,7 +303,7 @@ public enum L10n {
             Usage:
               aquarium               run the tank
               aquarium --focus [min] start in pomodoro focus mode (default 25)
-              aquarium --season <s>   force the season theme (auto|none|summer)
+              aquarium --season <s>   force the season theme (auto|none|summer|autumn)
               aquarium --lounge      exhibition mode (unattended display)
               aquarium --clap        fish react to a double clap (needs the mic)
                                      combine with --lounge for exhibition + clap
@@ -317,7 +322,7 @@ public enum L10n {
               f  sprinkle food      g  live food (brine shrimp)
               p  start/stop focus   i  tank log
               n  lights (auto → night → day)
-              t  season (auto → summer → off)
+              t  season (auto → summer → autumn → off)
               m  music (chiptune playlist on/off)
               q  quit (auto-saves)  mouse click: pet a fish
 
@@ -337,7 +342,7 @@ public enum L10n {
 
             Environment:
               AQUARIUM_LANG=ko|en                     force language
-              AQUARIUM_VISITOR=whale|turtle|octopus|sunfish   frequent visitors (easter egg)
+              AQUARIUM_VISITOR=whale|turtle|octopus|sunfish|shad   frequent visitors (easter egg)
               AQUARIUM_LOUNGE_QR=<url>                where the exhibition QR points
               AQUARIUM_CLAP_THRESHOLD=<0-1>           clap threshold (default 0.018)
                                                       lower = more sensitive

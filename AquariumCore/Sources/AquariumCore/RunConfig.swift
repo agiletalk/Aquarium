@@ -16,10 +16,12 @@ public struct RunConfig {
     public var storage: Storage
     /// 정원 상한. nil이면 기본 규칙(라운지 120 · 일반 40). 화면 밀도(cols*rows/80)는 그대로 적용된다.
     public var fishCap: Int?
+    /// 계절·기념일 판정에 쓸 날짜 고정(AQUARIUM_TODAY=YYYY-MM-DD). 테스트용 탈출구.
+    public var debugToday: MonthDay?
 
     public init(lounge: Bool = false, loungeFast: Bool = false, debugVisitor: String? = nil,
                 terminalDark: Bool? = nil, ephemeral: Bool = false, storage: Storage = .terminal,
-                fishCap: Int? = nil) {
+                fishCap: Int? = nil, debugToday: MonthDay? = nil) {
         self.lounge = lounge
         self.loungeFast = loungeFast
         self.debugVisitor = debugVisitor
@@ -27,6 +29,7 @@ public struct RunConfig {
         self.ephemeral = ephemeral
         self.storage = storage
         self.fishCap = fishCap
+        self.debugToday = debugToday
     }
 
     /// 터미널 앱의 resolve — 환경 변수에서 테스트용 탈출구를 읽는다.
@@ -37,7 +40,8 @@ public struct RunConfig {
                   debugVisitor: env["AQUARIUM_VISITOR"],
                   terminalDark: terminalDark,
                   ephemeral: ephemeral,
-                  storage: .terminal)
+                  storage: .terminal,
+                  debugToday: MonthDay(parsing: env["AQUARIUM_TODAY"]))
     }
 }
 
@@ -60,6 +64,25 @@ public struct Storage {
     }
 }
 
+/// 달력의 월·일 — 계절과 기념일 판정 입력.
+public struct MonthDay: Equatable {
+    public var month: Int
+    public var day: Int
+
+    public init(month: Int, day: Int) {
+        self.month = month
+        self.day = day
+    }
+
+    /// "YYYY-MM-DD" → 월·일. 형식이 틀리면 nil(조용히 실제 날짜를 쓴다).
+    public init?(parsing text: String?) {
+        guard let parts = text?.split(separator: "-"), parts.count == 3,
+              let month = Int(parts[1]), let day = Int(parts[2]),
+              (1...12).contains(month), (1...31).contains(day) else { return nil }
+        self.init(month: month, day: day)
+    }
+}
+
 /// 시각을 받아 연출을 판정하는 순수 함수. 실행 중에도 바뀌는 값이라
 /// RunConfig에 고정하지 않고 World가 주기적으로 부른다.
 public enum Resolve {
@@ -67,9 +90,23 @@ public enum Resolve {
     public static func isSummer(season: Season, month: Int) -> Bool {
         switch season {
         case .summer: return true
-        case .off: return false
+        case .off, .autumn: return false
         case .auto: return (6...8).contains(month)
         }
+    }
+
+    /// 가을 판정 — auto면 달력 기준 9–11월.
+    public static func isAutumn(season: Season, month: Int) -> Bool {
+        switch season {
+        case .autumn: return true
+        case .off, .summer: return false
+        case .auto: return (9...11).contains(month)
+        }
+    }
+
+    /// 할로윈 — 가을 연출이 켜진 10월 31일. 계절을 끄거나 여름으로 고정하면 오지 않는다.
+    public static func isHalloween(season: Season, today: MonthDay) -> Bool {
+        isAutumn(season: season, month: today.month) && today.month == 10 && today.day == 31
     }
 
     /// auto 조명의 밤 판정 — 19시~7시이거나 배경이 어두우면 밤.

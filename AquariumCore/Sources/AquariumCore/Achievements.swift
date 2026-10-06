@@ -124,6 +124,9 @@ public enum Achievements {
     Achievement(id: "morphs_50", icon: "✨", stat: "morphs", threshold: 50, ko: "돌연변이 마스터", en: "Mutation Master", koDesc: "희귀 물고기 50마리", enDesc: "50 rare fish"),
     Achievement(id: "morphKinds_4", icon: "🌟", stat: "morphKinds", threshold: 4, ko: "전설 컬렉션", en: "All That Glitters", koDesc: "무지개·발광·금빛·칠흑 동시 보유", enDesc: "own all 4 morphs at once"),
     Achievement(id: "personalityKinds_5", icon: "🎭", stat: "personalityKinds", threshold: 5, ko: "만인의 어항", en: "Full Spectrum", koDesc: "성격 5종 동시 보유", enDesc: "all 5 personalities at once"),
+    // 가을 시즌(v0.3) — 배열 끝에만 추가한다
+    Achievement(id: "shad_1", icon: "🐟", stat: "shad", threshold: 1, ko: "가을 전어", en: "Autumn Shad", koDesc: "전어 떼 1회 목격", enDesc: "shad school seen 1x"),
+    Achievement(id: "chestnut_1", icon: "🌰", stat: "chestnut", threshold: 1, ko: "가을의 맛", en: "Taste of Autumn", koDesc: "알밤 1톨 먹힘", enDesc: "1 chestnut eaten"),
     ]
 
     /// 저장 상태에서 업적 판정용 통계를 계산한다 (카운터 + 파생값 병합).

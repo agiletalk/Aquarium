@@ -37,6 +37,7 @@ private struct AquariumMenu: View {
                 get: { wallpaper.season }, set: { wallpaper.setSeason($0) })) {
                 Text(t("자동", "Auto")).tag(Season.auto)
                 Text(t("여름", "Summer")).tag(Season.summer)
+                Text(t("가을", "Autumn")).tag(Season.autumn)
                 Text(t("끄기", "Off")).tag(Season.off)
             }
             Toggle(t("음악", "Music"), isOn: Binding(

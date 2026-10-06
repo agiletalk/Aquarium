@@ -17,6 +17,33 @@ struct ResolveTests {
         }
     }
 
+    @Test("auto 계절은 9–11월만 가을, 여름과 겹치지 않는다", arguments: 1...12)
+    func autoAutumnFollowsCalendar(month: Int) {
+        #expect(Resolve.isAutumn(season: .auto, month: month) == (9...11).contains(month))
+        #expect(!(Resolve.isAutumn(season: .auto, month: month) && Resolve.isSummer(season: .auto, month: month)))
+    }
+
+    @Test("가을 강제는 여름을 끄고, 여름 강제는 가을을 끈다")
+    func forcedAutumnIsExclusive() {
+        for month in 1...12 {
+            #expect(Resolve.isAutumn(season: .autumn, month: month))
+            #expect(!Resolve.isSummer(season: .autumn, month: month))
+            #expect(!Resolve.isAutumn(season: .summer, month: month))
+            #expect(!Resolve.isAutumn(season: .off, month: month))
+        }
+    }
+
+    @Test("할로윈은 가을 연출이 켜진 10월 31일만")
+    func halloween() {
+        let day = MonthDay(month: 10, day: 31)
+        #expect(Resolve.isHalloween(season: .auto, today: day))
+        #expect(Resolve.isHalloween(season: .autumn, today: day))
+        #expect(!Resolve.isHalloween(season: .off, today: day))
+        #expect(!Resolve.isHalloween(season: .summer, today: day))
+        #expect(!Resolve.isHalloween(season: .auto, today: MonthDay(month: 10, day: 30)))
+        #expect(!Resolve.isHalloween(season: .autumn, today: MonthDay(month: 3, day: 31)))
+    }
+
     @Test("밤 판정 경계 — 19시부터 밤, 7시부터 낮", arguments: [
         (6, true), (7, false), (18, false), (19, true), (0, true), (12, false),
     ])
@@ -37,6 +64,7 @@ struct RunConfigTests {
         let config = RunConfig.terminal(environment: [:], lounge: false, terminalDark: nil)
         #expect(!config.loungeFast)
         #expect(config.debugVisitor == nil)
+        #expect(config.debugToday == nil)
         #expect(!config.ephemeral)
         #expect(config.storage.pollsTerminalQueues)
         #expect(config.storage.saveURL == SaveStore.fileURL)
@@ -132,5 +160,45 @@ struct FishCapTests {
         w.setFishCap(40)
         #expect(w.capacity == 40)
         #expect(w.saveState().fish.count == before)
+    }
+}
+
+@Suite("MonthDay — AQUARIUM_TODAY 파싱")
+struct MonthDayTests {
+    @Test("YYYY-MM-DD에서 월·일을 읽는다")
+    func parses() {
+        #expect(MonthDay(parsing: "2026-10-31") == MonthDay(month: 10, day: 31))
+        #expect(MonthDay(parsing: "2026-01-05") == MonthDay(month: 1, day: 5))
+    }
+
+    @Test("형식이 틀리면 nil — 실제 날짜로 돌아간다", arguments: [nil, "", "10-31", "2026-13-01", "2026-10-32", "abc-de-fg"])
+    func rejects(text: String?) {
+        #expect(MonthDay(parsing: text) == nil)
+    }
+
+    @Test("터미널 resolve가 AQUARIUM_TODAY를 읽는다")
+    func terminalReadsEnvironment() {
+        let config = RunConfig.terminal(environment: ["AQUARIUM_TODAY": "2026-10-31"], lounge: false, terminalDark: nil)
+        #expect(config.debugToday == MonthDay(month: 10, day: 31))
+    }
+}
+
+@Suite("Achievements — 세이브 호환")
+struct AchievementOrderTests {
+    @Test("업적 id는 겹치지 않는다")
+    func uniqueIDs() {
+        let ids = Achievements.all.map(\.id)
+        #expect(Set(ids).count == ids.count)
+    }
+
+    @Test("가을 업적은 배열 끝에 붙는다 — 기존 순서를 건드리지 않는다")
+    func autumnAppended() {
+        #expect(Achievements.all.suffix(2).map(\.id) == ["shad_1", "chestnut_1"])
+        #expect(Achievements.all[Achievements.all.count - 3].id == "personalityKinds_5")
+    }
+
+    @Test("전어 떼 목격 수가 업적 통계로 들어간다")
+    func shadStat() {
+        #expect(VisitorKind.allCases.last == .shad)
     }
 }

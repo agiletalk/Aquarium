@@ -6,7 +6,7 @@ public enum Lighting: String {
 
 /// 계절 테마 — 조명(Lighting)과 독립된 축. 세이브/CLI 표기는 "none".
 public enum Season: String {
-    case auto, off = "none", summer
+    case auto, off = "none", summer, autumn
 }
 
 struct Species {
@@ -106,7 +106,7 @@ struct Bubble {
 }
 
 enum FoodKind {
-    case pellet, watermelon
+    case pellet, watermelon, chestnut // 수박 = 여름, 알밤 = 가을
 }
 
 struct Food {
@@ -114,7 +114,19 @@ struct Food {
     var y: Double
     var vy: Double
     var restingSince: Double?
-    var kind: FoodKind = .pellet // 여름 수박 변형
+    var kind: FoodKind = .pellet // 계절 먹이 변형(여름 수박·가을 알밤)
+}
+
+/// 가을 낙엽 — 수면에서 흔들리며 가라앉아 모래 위에 잠시 머문다. 런타임 전용(세이브 무관).
+/// x는 가운데 열, y는 윗줄(잎은 2줄 3칸).
+struct Leaf {
+    var ginkgo: Bool // 노란 은행잎 / 아니면 붉은 단풍잎
+    var x: Double
+    var y: Double
+    var vy: Double
+    var phase: Double
+    var color: UInt8
+    var restingSince: Double?
 }
 
 struct Weed {
@@ -132,7 +144,7 @@ struct Shrimp {
 }
 
 enum VisitorKind: String, CaseIterable {
-    case whale, turtle, octopus, sunfish
+    case whale, turtle, octopus, sunfish, shad // shad = 전어(가을 손님)
 }
 
 let whaleArtRight: [[Character]] = [
@@ -169,6 +181,18 @@ let sunfishArtLeft: [[Character]] = [
     " \\  /  ",
     "  \\/   ",
 ].map(Array.init)
+
+// 전어 떼 — 가을 손님. 작은 물고기 8마리가 대열을 지어 지나간다(군무).
+// 두 프레임이 번갈아 가며 2·4번째 줄이 한 칸씩 출렁인다.
+let shadSchoolRight: [[[Character]]] = [
+    ["     ><°>       ><°>", "><°>      ><°>       ><°>", "     ><°>       ><°>", "          ><°>"],
+    ["     ><°>       ><°>", " ><°>      ><°>       ><°>", "     ><°>       ><°>", "           ><°>"],
+].map { $0.map(Array.init) }
+
+let shadSchoolLeft: [[[Character]]] = [
+    ["      <°><       <°><", " <°><       <°><      <°><", "      <°><       <°><", "            <°><"],
+    ["      <°><       <°><", "<°><       <°><      <°><", "      <°><       <°><", "           <°><"],
+].map { $0.map(Array.init) }
 
 struct Visitor {
     var kind: VisitorKind
@@ -234,6 +258,8 @@ public final class World {
         lounge && now < qrShownUntil && !rosterOpen && !mailboxOpen && !sponsorOpen
     }
     private var visitorSeen: [String: Int] = [:]
+    private var leaves: [Leaf] = []
+    private var halloweenAnnounced = false
     private var debugVisitor: String? { config.debugVisitor }
 
     private var usedNames: Set<String> = []
@@ -305,7 +331,24 @@ public final class World {
 
     /// 여름 판정 — auto면 달력 기준 6–8월. isNight와 직교한다(여름 밤엔 별/달이 그대로).
     public var isSummer: Bool {
-        Resolve.isSummer(season: season, month: Calendar.current.component(.month, from: Date()))
+        Resolve.isSummer(season: season, month: today.month)
+    }
+
+    /// 가을 판정 — auto면 달력 기준 9–11월. 여름과 같은 축(Season)이라 둘이 동시에 켜지지 않는다.
+    public var isAutumn: Bool {
+        Resolve.isAutumn(season: season, month: today.month)
+    }
+
+    /// 할로윈(가을 연출이 켜진 10/31) — 해파리가 호박 분장을 한다.
+    public var isHalloween: Bool {
+        Resolve.isHalloween(season: season, today: today)
+    }
+
+    /// 계절 판정용 오늘 — AQUARIUM_TODAY가 있으면 그 날짜.
+    private var today: MonthDay {
+        if let fixed = config.debugToday { return fixed }
+        let c = Calendar.current.dateComponents([.month, .day], from: Date())
+        return MonthDay(month: c.month ?? 1, day: c.day ?? 1)
     }
 
     private var now: Double { ProcessInfo.processInfo.systemUptime }
@@ -542,12 +585,14 @@ public final class World {
     public func toggleSeason() {
         switch season {
         case .auto: season = .summer
-        case .summer: season = .off
+        case .summer: season = .autumn
+        case .autumn: season = .off
         case .off: season = .auto
         }
         switch season {
-        case .auto: post(L10n.seasonAuto(isSummer: isSummer))
+        case .auto: post(L10n.seasonAuto(isSummer: isSummer, isAutumn: isAutumn))
         case .summer: post(L10n.seasonSummer)
+        case .autumn: post(L10n.seasonAutumn)
         case .off: post(L10n.seasonOff)
         }
     }
@@ -700,22 +745,28 @@ public final class World {
     public func feed() {
         guard food.count < 60 else { return }
         sprinkleFood(Int.random(in: 4...7))
-        // 여름 한정: 손으로 준 먹이에만 수박 한 조각이 섞인다
+        // 계절 한정: 손으로 준 먹이에만 여름엔 수박, 가을엔 알밤 한 조각이 섞인다
         // (커밋 보상·집중 완료 대잔치는 sprinkleFood를 직접 부르므로 해당 없음)
         // 동시에 한 조각만 — 3칸 글리프가 서로 겹쳐 깨지는 걸 구조적으로 차단
-        let melon = isSummer && cols > 10
-            && !food.contains(where: { $0.kind == .watermelon })
-            && Double.random(in: 0...1) < 0.25
-        if melon {
+        let seasonal: FoodKind? = isSummer ? .watermelon : (isAutumn ? .chestnut : nil)
+        let special = seasonal.flatMap { kind in
+            cols > 10 && !food.contains(where: { $0.kind != .pellet })
+                && Double.random(in: 0...1) < 0.25 ? kind : nil
+        }
+        if let special {
             food.append(Food(x: Double.random(in: 3...Double(cols - 4)),
                              y: Double(surfaceRow + 1),
-                             vy: Double.random(in: 0.08...0.16), // 수박은 천천히 가라앉는다
+                             vy: Double.random(in: 0.08...0.16), // 계절 먹이는 천천히 가라앉는다
                              restingSince: nil,
-                             kind: .watermelon))
+                             kind: special))
             bump("fed")
         }
         bump("feedActions")
-        post(melon ? L10n.watermelonDropped : L10n.foodSprinkled)
+        switch special {
+        case .watermelon: post(L10n.watermelonDropped)
+        case .chestnut: post(L10n.chestnutDropped)
+        default: post(L10n.foodSprinkled)
+        }
     }
 
     private func sprinkleFood(_ count: Int) {
@@ -948,6 +999,10 @@ public final class World {
             ingestAdoptions()
             processReleases()
         }
+        if isHalloween && !halloweenAnnounced {
+            halloweenAnnounced = true
+            post(L10n.halloween)
+        }
         if isNight && !wasNight { bump("nights") }
         wasNight = isNight
         if now >= nextAchvCheck {
@@ -979,6 +1034,7 @@ public final class World {
 
         updateFish(now)
         updateFood(now)
+        updateLeaves(now)
         updateShrimp(now)
         updateBubbles(now)
         updateJellyfish(now)
@@ -1081,16 +1137,18 @@ public final class World {
 
             for fi in food.indices.reversed() {
                 if abs(food[fi].x - f.mouthX) < 2.0, abs(food[fi].y - f.y) < 1.3 {
-                    let melon = food[fi].kind == .watermelon
+                    let kind = food[fi].kind
+                    let melon = kind != .pellet // 계절 먹이(수박·알밤)는 보양식
                     food.remove(at: fi)
                     f.eaten += 1
                     bump("meals")
-                    if melon { bump("watermelon") }
+                    if kind == .watermelon { bump("watermelon") }
+                    if kind == .chestnut { bump("chestnut") }
                     // 라운지에선 먹이가 성장을 못 당긴다 — 자동 먹이가 90~180초마다
                     // 3~5알을 뿌리므로 다 먹히면 135초당 -90~150초, 시간이 두 배로
                     // 흘러 "2~3일"이 허구가 된다. 거기에 행인이 f를 연타하면 더 빨라져
                     // 예측 자체가 불가능해진다. 라운지에서 먹이는 연출이고 성장은 시계다.
-                    if !lounge { nextBreed -= melon ? 45 : 30 } // 수박은 여름 보양식
+                    if !lounge { nextBreed -= melon ? 45 : 30 } // 수박·알밤은 계절 보양식
                     bubbles.append(Bubble(x: f.mouthX, y: f.y - 0.5,
                                           phase: Double.random(in: 0...(2 * .pi)),
                                           speed: Double.random(in: 0.2...0.35)))
@@ -1336,6 +1394,32 @@ public final class World {
         }
     }
 
+    private func updateLeaves(_ now: Double) {
+        for i in leaves.indices where leaves[i].restingSince == nil {
+            leaves[i].y += leaves[i].vy
+            // 좌우로 하늘하늘 — 거품보다 느리고 폭이 넓다
+            leaves[i].x += sin(now * 1.3 + leaves[i].phase) * 0.09
+            leaves[i].x = min(max(2, leaves[i].x), Double(cols - 3))
+            // 아랫줄(잎자루)이 모래에 닿으면 눕는다
+            if leaves[i].y + 1 >= Double(sandRow) {
+                leaves[i].y = Double(sandRow - 1)
+                leaves[i].restingSince = now
+            }
+        }
+        leaves.removeAll { leaf in leaf.restingSince.map { now - $0 > 12 } ?? false }
+
+        // 계절이 바뀌어도 이미 떨어지던 잎은 끝까지 가라앉는다 — 새로 생기지만 않는다
+        guard isAutumn, cols > 12, leaves.count < max(2, cols / 12),
+              Double.random(in: 0...1) < 0.03 else { return }
+        let ginkgo = Double.random(in: 0...1) < 0.4
+        leaves.append(Leaf(ginkgo: ginkgo,
+                           x: Double.random(in: 3...Double(cols - 4)),
+                           y: Double(surfaceRow + 1),
+                           vy: Double.random(in: 0.035...0.07),
+                           phase: Double.random(in: 0...(2 * .pi)),
+                           color: (ginkgo ? [220, 226, 178] : [160, 196, 166, 202, 208]).randomElement()!))
+    }
+
     private func updateBubbles(_ now: Double) {
         for i in bubbles.indices {
             bubbles[i].y -= bubbles[i].speed
@@ -1481,17 +1565,19 @@ public final class World {
         guard var v = visitor else { return }
 
         switch v.kind {
-        case .whale, .turtle, .sunfish:
+        case .whale, .turtle, .sunfish, .shad:
             let speed: Double
             switch v.kind {
             case .whale: speed = 0.28
             case .turtle: speed = 0.18
             case .sunfish: speed = 0.13 // 개복치는 물살에 떠밀리듯 느긋하게
+            case .shad: speed = 0.4 // 전어 떼는 재빠르게 휙
             case .octopus: speed = 0
             }
             v.x += v.dir * speed
             if v.kind == .turtle { v.y += sin(now * 1.2) * 0.03 }
             if v.kind == .sunfish { v.y += sin(now * 0.5) * 0.02 } // 흐느적 상하 표류
+            if v.kind == .shad { v.y += sin(now * 2.2) * 0.04 } // 떼 전체가 물결치듯
             let width = Double(visitorArt(v).map(\.count).max() ?? 20)
             if (v.dir > 0 && v.x > Double(cols)) || (v.dir < 0 && v.x < -width) {
                 visitor = nil
@@ -1513,8 +1599,10 @@ public final class World {
     }
 
     private func spawnVisitor(_ now: Double) {
-        // 개복치는 여름에만 합류 (AQUARIUM_VISITOR는 계절 무시 — 테스트용 탈출구)
-        let pool = VisitorKind.allCases.filter { $0 != .sunfish || isSummer }
+        // 개복치는 여름에만, 전어 떼는 가을에만 합류 (AQUARIUM_VISITOR는 계절 무시 — 테스트용 탈출구)
+        let pool = VisitorKind.allCases.filter {
+            ($0 != .sunfish || isSummer) && ($0 != .shad || isAutumn)
+        }
         var kind = VisitorKind(rawValue: debugVisitor ?? "") ?? pool.randomElement()!
         if kind == .whale, swimMaxRow - swimMinRow < 8 { kind = .turtle }
 
@@ -1544,6 +1632,12 @@ public final class World {
                               y: Double.random(in: Double(swimMinRow + 1)...Double(max(swimMinRow + 1, swimMaxRow - 5))),
                               dir: dir, departAt: nil)
             post(L10n.sunfishDrifting)
+        case .shad:
+            visitor = Visitor(kind: kind,
+                              x: dir > 0 ? -27 : Double(cols + 2),
+                              y: Double.random(in: Double(swimMinRow + 2)...Double(max(swimMinRow + 2, swimMaxRow - 4))),
+                              dir: dir, departAt: nil)
+            post(L10n.shadSchool)
         }
         visitorSeen[kind.rawValue, default: 0] += 1
     }
@@ -1571,6 +1665,9 @@ public final class World {
             return [Array(" .-\"\"\"-. "), Array("( °   ° )"), Array(tentacles)]
         case .sunfish:
             return v.dir > 0 ? sunfishArtRight : sunfishArtLeft
+        case .shad:
+            let frames = v.dir > 0 ? shadSchoolRight : shadSchoolLeft
+            return frames[(tick / 5) % frames.count]
         }
     }
 
@@ -1723,6 +1820,7 @@ public final class World {
         drawFood(&grid)
         drawShrimp(&grid)
         drawBubbles(&grid)
+        drawLeaves(&grid, now) // 거품보다 위 — 거품에 묻히면 잎으로 안 읽힌다
         drawJellyfish(&grid, now)
         if let v = visitor, v.kind != .whale { drawVisitor(&grid) }
         drawFish(&grid, now)
@@ -1778,6 +1876,21 @@ public final class World {
             if sunStart > titleStart + title.count {
                 for (i, ch) in sun.enumerated() {
                     grid[0][sunStart + i] = Cell(ch: ch, color: ch == "O" ? 226 : 220, glow: true)
+                }
+            }
+        } else if isAutumn {
+            // 가을 낮: 수면 위로 바람에 실린 낙엽이 이따금 흘러간다 (밤엔 별/달 — 계절과 조명은 직교)
+            for c in 1..<(cols - 1) {
+                if cols > title.count + 4, c >= titleStart - 1, c <= titleStart + title.count { continue }
+                let gust = sin(Double(c) * 0.23 - now * 0.9) * sin(Double(c) * 0.051 + now * 0.3)
+                let h = Int((UInt(c) &* 40_503) % 12)
+                // 돌풍 구간 안에서도 띄엄띄엄 — 잎(3칸)이 한 덩어리로 뭉치지 않게. 수면이라 윗줄만 보인다.
+                guard gust > 0.85, h < 2, c >= 2, c <= cols - 3,
+                      !(cols > title.count + 4 && c + 1 >= titleStart - 1 && c - 1 <= titleStart + title.count)
+                else { continue }
+                let ginkgo = h == 1
+                for (i, ch) in (ginkgo ? Self.ginkgoArt : Self.mapleArt)[0].enumerated() {
+                    grid[0][c - 1 + i] = Cell(ch: ch, color: ginkgo ? 220 : 166, glow: true)
                 }
             }
         }
@@ -1841,11 +1954,23 @@ public final class World {
 
     private func drawJellyfish(_ grid: inout [[Cell]], _ now: Double) {
         for j in jellyfish {
-            let art: [[Character]] = j.isContracted(at: now)
-                ? [Array(" (_) "), Array("  |  ")]
-                : [Array("(___)"), Array(" )|( ")]
+            let halloween = isHalloween
+            let art: [[Character]]
+            if halloween {
+                // 할로윈: 갓이 잭오랜턴 얼굴이 된다
+                art = j.isContracted(at: now)
+                    ? [Array(" (w) "), Array("  |  ")]
+                    : [Array("(^w^)"), Array(" )|( ")]
+            } else {
+                art = j.isContracted(at: now)
+                    ? [Array(" (_) "), Array("  |  ")]
+                    : [Array("(___)"), Array(" )|( ")]
+            }
             // Bioluminescence: jellyfish glow teal at night instead of dimming
-            let bellColor: UInt8 = isNight
+            // (할로윈엔 밤낮 없이 호박색으로 일렁인다)
+            let bellColor: UInt8 = halloween
+                ? [208, 214, 202][(tick / 4) % 3]
+                : isNight
                 ? [51, 87, 123][(tick / 4) % 3]
                 : [183, 189, 177][(tick / 4) % 3] // translucent shimmer
             let startR = Int(j.y.rounded())
@@ -1858,7 +1983,36 @@ public final class World {
                     guard c > 0, c < cols - 1 else { continue }
                     grid[r][c] = Cell(ch: ch,
                                       color: ri == 0 ? bellColor : (isNight ? 45 : 146),
-                                      glow: isNight)
+                                      glow: isNight || (halloween && ri == 0))
+                }
+            }
+        }
+    }
+
+    // 낙엽은 2줄 3칸 — 한 칸 기호(',' '&')는 큰 화면에서 거품에 묻혀 잎으로 안 읽혔다(사용자 피드백 10/6).
+    // 단풍잎은 갈라진 잎 + 잎자루, 은행잎은 부채꼴 + 잎자루. 뒤집히면 위아래가 바뀐다.
+    private static let mapleArt: [[Character]] = [Array("\\^/"), Array(" ' ")]
+    private static let mapleFlipped: [[Character]] = [Array(" . "), Array("/v\\")]
+    private static let ginkgoArt: [[Character]] = [Array("\\_/"), Array(" | ")]
+    private static let ginkgoFlipped: [[Character]] = [Array(" | "), Array("/~\\")]
+
+    private func drawLeaves(_ grid: inout [[Cell]], _ now: Double) {
+        for leaf in leaves {
+            let top = Int(leaf.y.rounded()), mid = Int(leaf.x.rounded())
+            let resting = leaf.restingSince != nil
+            // 가라앉는 동안 4박자에 한 번 뒤집힌다. 모래 위에선 바로 누워 마른 갈색이 된다.
+            let flipped = !resting && Int(now * 0.7 + leaf.phase * 3) % 4 == 3
+            let art = leaf.ginkgo
+                ? (flipped ? Self.ginkgoFlipped : Self.ginkgoArt)
+                : (flipped ? Self.mapleFlipped : Self.mapleArt)
+            let color: UInt8 = resting ? (leaf.ginkgo ? 136 : 130) : leaf.color
+            for (ri, row) in art.enumerated() {
+                let r = top + ri
+                guard r >= swimMinRow, r <= sandRow else { continue }
+                for (ci, ch) in row.enumerated() where ch != " " {
+                    let c = mid - 1 + ci
+                    guard c > 0, c < cols - 1 else { continue }
+                    grid[r][c] = Cell(ch: ch, color: color)
                 }
             }
         }
@@ -1870,14 +2024,18 @@ public final class World {
             guard r >= swimMinRow, r <= sandRow, c > 0, c < cols - 1 else { continue }
             grid[r][c] = Cell(ch: "*", color: 214)
         }
-        // 수박은 3칸이라 펠릿보다 뒤에 그린다 (펠릿이 껍질을 파먹지 않게)
-        for melon in food where melon.kind == .watermelon {
-            let r = Int(melon.y.rounded()), c = Int(melon.x.rounded())
+        // 계절 먹이는 3칸이라 펠릿보다 뒤에 그린다 (펠릿이 껍질을 파먹지 않게)
+        for item in food where item.kind != .pellet {
+            let r = Int(item.y.rounded()), c = Int(item.x.rounded())
             guard r >= swimMinRow, r <= sandRow else { continue }
-            for (dc, ch) in [(-1, Character("(")), (0, "%"), (1, ")")] {
+            let center: Character = item.kind == .watermelon ? "%" : "@"
+            for (dc, ch) in [(-1, Character("(")), (0, center), (1, ")")] {
                 let x = c + dc
                 guard x > 0, x < cols - 1 else { continue }
-                grid[r][x] = Cell(ch: ch, color: dc == 0 ? 198 : 34) // 분홍 속 + 초록 껍질
+                let color: UInt8 = item.kind == .watermelon
+                    ? (dc == 0 ? 198 : 34)  // 수박: 분홍 속 + 초록 껍질
+                    : (dc == 0 ? 172 : 130) // 알밤: 밤색 알 + 짙은 껍질
+                grid[r][x] = Cell(ch: ch, color: color)
             }
         }
     }
@@ -1961,6 +2119,7 @@ public final class World {
         case .turtle: baseColor = 71
         case .octopus: baseColor = 168
         case .sunfish: baseColor = 145 // 은빛 회색
+        case .shad: baseColor = 152    // 은청색 비늘
         }
         let startR = Int(v.y.rounded())
         let startC = Int(v.x.rounded())
@@ -2121,6 +2280,9 @@ public final class World {
         lines.append((seen, 117))
         if visitorSeen["sunfish", default: 0] > 0 {
             lines.append((" " + L10n.rosterSunfish(visitorSeen["sunfish", default: 0]), 117))
+        }
+        if visitorSeen["shad", default: 0] > 0 {
+            lines.append((" " + L10n.rosterShad(visitorSeen["shad", default: 0]), 117))
         }
         if focusDone > 0 {
             lines.append((" " + L10n.rosterFocus(focusDone), 203))

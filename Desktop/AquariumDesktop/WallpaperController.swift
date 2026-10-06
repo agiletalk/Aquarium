@@ -97,6 +97,13 @@ final class WallpaperController: ObservableObject {
                                               "achievements": .achievements, "sponsor": .sponsor]
             if let kind = kinds[name] { togglePanel(kind) }
         }
+        // Probe: 메뉴 없이 N초마다 먹이를 준다 — 계절 먹이(수박·알밤) 확인용 (AQUARIUM_PROBE_FEED=<초>).
+        if Probe.enabled, let text = ProcessInfo.processInfo.environment["AQUARIUM_PROBE_FEED"],
+           let seconds = Double(text), seconds > 0 {
+            Timer.scheduledTimer(withTimeInterval: seconds, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.feed() }
+            }
+        }
     }
 
     func save() { world?.writeSave() }
@@ -381,9 +388,12 @@ final class WallpaperController: ObservableObject {
     private func makeWorld(cols: Int, rows: Int) -> World {
         // lounge 그대로(정원 120·번식 2~3일·자동 먹이). QR은 렌더러가 그리지 않는다.
         // 터미널 큐는 소비하지 않는다 — 같은 큐를 두 어항이 먹으면 먼저 읽은 쪽이 가져간다.
-        let config = RunConfig(lounge: true, terminalDark: nil,
+        // 손님·날짜 고정(AQUARIUM_VISITOR·AQUARIUM_TODAY)은 터미널과 같은 테스트용 탈출구.
+        let env = ProcessInfo.processInfo.environment
+        let config = RunConfig(lounge: true, debugVisitor: env["AQUARIUM_VISITOR"], terminalDark: nil,
                                storage: Storage(saveURL: Self.saveURL, pollsTerminalQueues: false),
-                               fishCap: Settings.fishCap)
+                               fishCap: Settings.fishCap,
+                               debugToday: MonthDay(parsing: env["AQUARIUM_TODAY"]))
         return World(cols: cols, rows: rows, config: config,
                      restoring: SaveStore.load(from: Self.saveURL), effects: effects)
     }
