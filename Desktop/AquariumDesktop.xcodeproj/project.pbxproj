@@ -192,19 +192,22 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Aquarium;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© agiletalk";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.agiletalk.AquariumDesktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -218,19 +221,22 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Aquarium;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© agiletalk";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.agiletalk.AquariumDesktop;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -244,19 +250,22 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 4;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Aquarium;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_LSUIElement = YES;
+				INFOPLIST_KEY_NSDesktopFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
+				INFOPLIST_KEY_NSDocumentsFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
+				INFOPLIST_KEY_NSDownloadsFolderUsageDescription = "스크린샷을 찍으면 어항에 먹이가 떨어지도록 스크린샷 저장 폴더를 확인합니다(파일 내용은 읽지 않아요). Watches your screenshot folder so a new screenshot drops food in the tank (file contents are never read).";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© agiletalk";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.2.1;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.wantedlab.AquariumDesktop; /* 사내 스토어 배포용 */
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
