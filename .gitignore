@@ -6,3 +6,10 @@
 # 공개 레포이므로 추적되는 순간 그대로 배포된다.
 docs/HANDOFF-*.md
 HANDOFF-*.md
+
+# 데스크톱 앱 아카이브·배포 산출물
+Desktop/build/
+
+# Xcode 개인 설정
+xcuserdata/
+*.xcodeproj/project.xcworkspace/

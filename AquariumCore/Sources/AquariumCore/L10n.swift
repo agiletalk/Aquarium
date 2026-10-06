@@ -1,8 +1,10 @@
 import Foundation
 
 /// Language selection: AQUARIUM_LANG env > LC_ALL/LC_MESSAGES/LANG > macOS AppleLocale > English.
-enum L10n {
-    static let isKorean: Bool = {
+public enum L10n {
+    /// 앱이 덮어쓸 수 있다 — 데스크톱은 환경 변수가 없어 메뉴 설정으로 정한다.
+    /// 터미널은 건드리지 않고 아래 기본 판정을 그대로 쓴다.
+    public static var isKorean: Bool = {
         let env = ProcessInfo.processInfo.environment
         if let forced = env["AQUARIUM_LANG"]?.lowercased() {
             if forced.hasPrefix("ko") { return true }
@@ -31,7 +33,7 @@ enum L10n {
 
     // MARK: - Fish names
 
-    static let fishNames: [String] = isKorean
+    public static let fishNames: [String] = isKorean
         ? ["방울이", "통통이", "쏜살이", "반짝이", "초롱이", "몽실이", "뽀글이", "살랑이",
            "여울이", "물결이", "미르", "파랑이", "노랑이", "분홍이", "산호", "진주",
            "소라", "새벽이", "노을이", "별이", "달이", "구름이", "이슬이", "방긋이",
@@ -109,137 +111,137 @@ enum L10n {
         case .shadow: return t("칠흑", "Shadow")
         }
     }
-    static func evolved(_ name: String, _ morphName: String) -> String {
+    public static func evolved(_ name: String, _ morphName: String) -> String {
         isKorean ? "✨ \(name)\(subjectParticle(name)) \(morphName) 물고기로 진화했어요!"
                  : "✨ \(name) evolved into a \(morphName) fish!"
     }
-    static func grewRare(_ name: String, _ morphName: String) -> String {
+    public static func grewRare(_ name: String, _ morphName: String) -> String {
         isKorean ? "✨ 아기 \(name)\(subjectParticle(name)) \(morphName) 물고기로 자랐어요!"
                  : "✨ Baby \(name) grew into a \(morphName) fish!"
     }
-    static func cardRare(_ n: Int) -> String { t("✨ 희귀 물고기 \(n)마리", "✨ \(n) rare fish") }
+    public static func cardRare(_ n: Int) -> String { t("✨ 희귀 물고기 \(n)마리", "✨ \(n) rare fish") }
 
     // MARK: - Tank messages
 
-    static var foodSprinkled: String { t("먹이를 뿌렸어요! 물고기들이 몰려듭니다~", "Food sprinkled! Here they come~") }
-    static var watermelonDropped: String { t("수박 한 조각을 띄웠어요! 🍉", "Dropped a slice of watermelon! 🍉") }
-    static var shrimpReleased: String { t("브라인슈림프를 풀었어요! 사냥 개시!", "Brine shrimp released — the hunt is on!") }
+    public static var foodSprinkled: String { t("먹이를 뿌렸어요! 물고기들이 몰려듭니다~", "Food sprinkled! Here they come~") }
+    public static var watermelonDropped: String { t("수박 한 조각을 띄웠어요! 🍉", "Dropped a slice of watermelon! 🍉") }
+    public static var shrimpReleased: String { t("브라인슈림프를 풀었어요! 사냥 개시!", "Brine shrimp released — the hunt is on!") }
 
-    static func babyBorn(_ name: String, count: Int) -> String {
+    public static func babyBorn(_ name: String, count: Int) -> String {
         isKorean
             ? "아기 \(name)\(subjectParticle(name)) 태어났어요! (\(count)마리)"
             : "Baby \(name) was born! (\(count) fish)"
     }
 
-    static func welcomeBack(count: Int) -> String {
+    public static func welcomeBack(count: Int) -> String {
         t("어항에 돌아오신 걸 환영해요! (물고기 \(count)마리)", "Welcome back to your tank! (\(count) fish)")
     }
 
-    static func offlineBirths(_ born: Int, total: Int) -> String {
+    public static func offlineBirths(_ born: Int, total: Int) -> String {
         t("다녀오신 사이 물고기 \(born)마리가 태어났어요! (\(total)마리)",
           "\(born) fish were born while you were away! (\(total) total)")
     }
 
-    static func touched(_ name: String) -> String {
+    public static func touched(_ name: String) -> String {
         isKorean ? "\(name)\(objectParticle(name)) 만졌어요!" : "You touched \(name)!"
     }
 
-    static func lightingAuto(isNight: Bool) -> String {
+    public static func lightingAuto(isNight: Bool) -> String {
         t("조명: 자동 (지금은 \(isNight ? "밤" : "낮"))", "Lights: auto (currently \(isNight ? "night" : "day"))")
     }
-    static var lightingNight: String { t("조명: 밤", "Lights: night") }
-    static var lightingDay: String { t("조명: 낮", "Lights: day") }
+    public static var lightingNight: String { t("조명: 밤", "Lights: night") }
+    public static var lightingDay: String { t("조명: 낮", "Lights: day") }
 
-    static func seasonAuto(isSummer: Bool) -> String {
+    public static func seasonAuto(isSummer: Bool) -> String {
         t("계절: 자동 (지금은 \(isSummer ? "여름" : "평소"))",
           "Season: auto (currently \(isSummer ? "summer" : "off-season"))")
     }
-    static var seasonSummer: String { t("계절: 여름", "Season: summer") }
-    static var seasonOff: String { t("계절: 끄기", "Season: off") }
+    public static var seasonSummer: String { t("계절: 여름", "Season: summer") }
+    public static var seasonOff: String { t("계절: 끄기", "Season: off") }
 
-    static var whalePassing: String { t("저 멀리 고래가 지나가요…", "A whale is passing by in the distance…") }
-    static var turtleVisiting: String { t("거북이가 놀러 왔어요!", "A sea turtle came to visit!") }
-    static var octopusAppeared: String { t("문어가 나타났어요!", "An octopus appeared!") }
-    static var octopusVanished: String { t("문어가 먹물을 뿜고 사라졌어요!", "The octopus squirted ink and vanished!") }
-    static var sunfishDrifting: String { t("개복치가 둥실둥실 떠내려와요…", "A sunfish is drifting lazily by…") }
+    public static var whalePassing: String { t("저 멀리 고래가 지나가요…", "A whale is passing by in the distance…") }
+    public static var turtleVisiting: String { t("거북이가 놀러 왔어요!", "A sea turtle came to visit!") }
+    public static var octopusAppeared: String { t("문어가 나타났어요!", "An octopus appeared!") }
+    public static var octopusVanished: String { t("문어가 먹물을 뿜고 사라졌어요!", "The octopus squirted ink and vanished!") }
+    public static var sunfishDrifting: String { t("개복치가 둥실둥실 떠내려와요…", "A sunfish is drifting lazily by…") }
 
-    static var musicOn: String { t("음악을 켰어요 (DOS 감성 칩튠)", "Music on (DOS-era chiptunes)") }
-    static var musicOff: String { t("음악을 껐어요", "Music off") }
-    static var musicFailed: String { t("음악을 재생할 수 없어요 (오디오 장치를 못 찾음)", "Can't play music (no audio device found)") }
-    static func nowPlaying(_ title: String) -> String { t("♪ 지금 나오는 곡: \(title)", "♪ Now playing: \(title)") }
+    public static var musicOn: String { t("음악을 켰어요 (DOS 감성 칩튠)", "Music on (DOS-era chiptunes)") }
+    public static var musicOff: String { t("음악을 껐어요", "Music off") }
+    public static var musicFailed: String { t("음악을 재생할 수 없어요 (오디오 장치를 못 찾음)", "Can't play music (no audio device found)") }
+    public static func nowPlaying(_ title: String) -> String { t("♪ 지금 나오는 곡: \(title)", "♪ Now playing: \(title)") }
 
     // MARK: - Focus (pomodoro)
 
-    static func focusStarted(_ minutes: Int) -> String {
+    public static func focusStarted(_ minutes: Int) -> String {
         t("집중 시작! \(minutes)분 — 물고기들이 응원하고 있어요", "Focus started! \(minutes) min — the fish are rooting for you")
     }
-    static var focusCancelled: String { t("집중을 중단했어요", "Focus cancelled") }
-    static func focusComplete(_ total: Int) -> String {
+    public static var focusCancelled: String { t("집중을 중단했어요", "Focus cancelled") }
+    public static func focusComplete(_ total: Int) -> String {
         t("집중 완료! 보상으로 먹이 대잔치를 열었어요 (누적 \(total)회)",
           "Focus complete! Feast time as a reward (total \(total))")
     }
-    static func statusFocus(_ time: String) -> String { t("집중 \(time)", "focus \(time)") }
-    static func rosterFocus(_ n: Int) -> String { t("집중 기록   \(n)회 완료", "Focus   \(n) sessions done") }
+    public static func statusFocus(_ time: String) -> String { t("집중 \(time)", "focus \(time)") }
+    public static func rosterFocus(_ n: Int) -> String { t("집중 기록   \(n)회 완료", "Focus   \(n) sessions done") }
 
     // MARK: - Tank capacity
 
-    static func tankFull(_ max: Int) -> String {
+    public static func tankFull(_ max: Int) -> String {
         t("어항이 가득 찼어요! (최대 \(max)마리)", "The tank is full! (max \(max) fish)")
     }
-    static var statusTankFull: String { t("어항이 가득 찼어요!", "the tank is full!") }
+    public static var statusTankFull: String { t("어항이 가득 찼어요!", "the tank is full!") }
 
     // MARK: - Status bar
 
-    static func statusFish(_ n: Int) -> String { t("물고기 \(n)마리", "\(n) fish") }
-    static func statusFood(_ n: Int) -> String { t("먹이 \(n)", "food \(n)") }
-    static func statusDay(_ days: Int, _ time: String) -> String { t("\(days)일째 \(time)", "day \(days) · \(time)") }
-    static func modeLabel(auto: Bool, night: Bool) -> String {
+    public static func statusFish(_ n: Int) -> String { t("물고기 \(n)마리", "\(n) fish") }
+    public static func statusFood(_ n: Int) -> String { t("먹이 \(n)", "food \(n)") }
+    public static func statusDay(_ days: Int, _ time: String) -> String { t("\(days)일째 \(time)", "day \(days) · \(time)") }
+    public static func modeLabel(auto: Bool, night: Bool) -> String {
         if auto { return t(night ? "밤·자동" : "낮·자동", night ? "night·auto" : "day·auto") }
         return t(night ? "밤" : "낮", night ? "night" : "day")
     }
-    static var helpLine: String {
+    public static var helpLine: String {
         t("[f] 먹이  [g] 생먹이  [p] 집중  [i] 도감  [b] 편지함  [s] 후원  [n] 조명  [t] 계절  [m] 음악  [q] 종료",
           "[f] feed  [g] live food  [p] focus  [i] log  [b] mail  [s] support  [n] lights  [t] season  [m] music  [q] quit")
     }
-    static var enlargeTerminal: String { t("터미널 창을 조금만 키워주세요! (최소 34x12)", "Please enlarge the terminal! (min 34x12)") }
+    public static var enlargeTerminal: String { t("터미널 창을 조금만 키워주세요! (최소 34x12)", "Please enlarge the terminal! (min 34x12)") }
 
     // MARK: - Roster panel
 
-    static func rosterTitle(_ n: Int) -> String { t("[ 우리 어항 도감 · \(n)마리 ]", "[ Tank Log · \(n) fish ]") }
-    static var rosterToday: String { t("오늘", "today") }
-    static func rosterDays(_ d: Int) -> String { t("\(d)일째", "day \(d)") }
-    static func rosterEaten(_ n: Int) -> String { t("먹이 \(n)", "fed \(n)") }
-    static func rosterMore(_ n: Int) -> String { t("…외 \(n)마리", "…and \(n) more") }
-    static func rosterVisitors(whale: Int, turtle: Int, octopus: Int) -> String {
+    public static func rosterTitle(_ n: Int) -> String { t("[ 우리 어항 도감 · \(n)마리 ]", "[ Tank Log · \(n) fish ]") }
+    public static var rosterToday: String { t("오늘", "today") }
+    public static func rosterDays(_ d: Int) -> String { t("\(d)일째", "day \(d)") }
+    public static func rosterEaten(_ n: Int) -> String { t("먹이 \(n)", "fed \(n)") }
+    public static func rosterMore(_ n: Int) -> String { t("…외 \(n)마리", "…and \(n) more") }
+    public static func rosterVisitors(whale: Int, turtle: Int, octopus: Int) -> String {
         t("손님 기록   고래 \(whale) · 거북이 \(turtle) · 문어 \(octopus)",
           "Visitors   whale \(whale) · turtle \(turtle) · octopus \(octopus)")
     }
-    static func rosterSunfish(_ n: Int) -> String { t("여름 손님   개복치 \(n)", "Summer guest   sunfish \(n)") }
-    static var rosterEnlarge: String { t("도감을 보려면 창을 키워주세요", "Enlarge the window to see the log") }
+    public static func rosterSunfish(_ n: Int) -> String { t("여름 손님   개복치 \(n)", "Summer guest   sunfish \(n)") }
+    public static var rosterEnlarge: String { t("도감을 보려면 창을 키워주세요", "Enlarge the window to see the log") }
 
     // MARK: - CLI
 
-    static var statusNoTank: String {
+    public static var statusNoTank: String {
         t("><> 아직 어항이 없어요 — aquarium 을 실행해 물고기를 만나보세요!",
           "><> No tank yet — run aquarium to meet your fish!")
     }
-    static var statusBabyWaiting: String { t("아기가 기다리고 있어요!", "a baby is waiting!") }
-    static func statusNextBirthMinutes(_ m: Int) -> String { t("다음 탄생까지 \(m)분", "next birth in \(m)m") }
-    static func statusNextBirthSeconds(_ s: Int) -> String { t("다음 탄생까지 \(s)초", "next birth in \(s)s") }
-    static func statusLine(count: Int, days: Int, breed: String) -> String {
+    public static var statusBabyWaiting: String { t("아기가 기다리고 있어요!", "a baby is waiting!") }
+    public static func statusNextBirthMinutes(_ m: Int) -> String { t("다음 탄생까지 \(m)분", "next birth in \(m)m") }
+    public static func statusNextBirthSeconds(_ s: Int) -> String { t("다음 탄생까지 \(s)초", "next birth in \(s)s") }
+    public static func statusLine(count: Int, days: Int, breed: String) -> String {
         t("><> \(count)마리 · \(days)일째 · \(breed)", "><> \(count) fish · day \(days) · \(breed)")
     }
-    static var goodbye: String {
+    public static var goodbye: String {
         t("어항을 저장했어요. 다음에 또 만나요! ><>  <><", "Tank saved. See you next time! ><>  <><")
     }
-    static func unknownOption(_ option: String) -> String {
+    public static func unknownOption(_ option: String) -> String {
         t("알 수 없는 옵션: \(option)\n--help 를 참고하세요.", "Unknown option: \(option)\nSee --help.")
     }
-    static func invalidSeason(_ value: String) -> String {
+    public static func invalidSeason(_ value: String) -> String {
         t("--season 값이 잘못됐어요: \(value.isEmpty ? "(값 없음)" : value)\n사용 가능: auto | none | summer",
           "Invalid --season value: \(value.isEmpty ? "(missing)" : value)\nAvailable: auto | none | summer")
     }
-    static var helpText: String {
+    public static var helpText: String {
         isKorean
             ? """
             aquarium — 터미널 속 힐링 ASCII 어항
@@ -344,52 +346,60 @@ enum L10n {
 
     // MARK: - Support (후원)
 
-    static var sponsorTitle: String { t("[ 후원 · Support ☕ ]", "[ Support ☕ ]") }
-    static var sponsorThanks1: String {
+    public static var sponsorTitle: String { t("[ 후원 · Support ☕ ]", "[ Support ☕ ]") }
+    public static var sponsorThanks1: String {
         t("이 어항은 무료이자 오픈소스예요.", "This little aquarium is free and open source.")
     }
-    static var sponsorThanks2: String {
+    public static var sponsorThanks2: String {
         t("커피 한 잔이 새 물고기와 기능, 밤샘 디버깅의 연료가 됩니다 ☕",
           "A coffee fuels new fish, features, and late-night debugging ☕")
     }
-    static var sponsorOpenHint: String {
+    public static var sponsorOpenHint: String {
         t("[o] 브라우저에서 열기   [s] 닫기", "[o] open in browser   [s] close")
     }
-    static var sponsorOpened: String {
+    /// 데스크톱 후원 패널의 안내 — 키 대신 메뉴로 연다.
+    public static var sponsorOpenHintMenu: String {
+        t("메뉴의 '후원 페이지 열기'로 브라우저에서 열 수 있어요", "Use \"Open Support Page\" in the menu to open it")
+    }
+    public static var achievementsEnlarge: String { t("업적을 보려면 창을 키워주세요", "Enlarge the window to see achievements") }
+    public static func achievementsTitle(_ have: Int, _ total: Int) -> String {
+        t("[ 업적 · \(have)/\(total) ]", "[ Achievements · \(have)/\(total) ]")
+    }
+    public static var sponsorOpened: String {
         t("브라우저에서 후원 페이지를 열었어요. 고마워요! ☕", "Opened the sponsor page — thank you! ☕")
     }
-    static var sponsorEnlarge: String { t("후원 안내를 보려면 창을 키워주세요", "Enlarge the window for the support page") }
+    public static var sponsorEnlarge: String { t("후원 안내를 보려면 창을 키워주세요", "Enlarge the window for the support page") }
 
     // MARK: - Wanderlust & postcards (방랑벽 & 엽서)
 
-    static func departedWander(_ name: String) -> String {
+    public static func departedWander(_ name: String) -> String {
         isKorean ? "\(name)\(subjectParticle(name)) 넓은 바다로 여행을 떠났어요 🌊"
                  : "\(name) set off to explore the open sea 🌊"
     }
-    static func postcardArrived(_ name: String, _ location: String) -> String {
+    public static func postcardArrived(_ name: String, _ location: String) -> String {
         isKorean ? "\(name)\(subjectParticle(name)) \(location)에서 엽서를 보냈어요 🪸"
                  : "\(name) sent a postcard from \(location) 🪸"
     }
-    static func postcardsBatch(_ n: Int) -> String {
+    public static func postcardsBatch(_ n: Int) -> String {
         t("여행 간 친구들에게서 엽서 \(n)통이 도착했어요 📬", "\(n) postcards arrived from your travelers 📬")
     }
-    static func mailboxTitle(_ n: Int) -> String { t("[ 받은편지함 · \(n)통 ]", "[ Mailbox · \(n) ]") }
-    static var mailboxEmpty: String {
+    public static func mailboxTitle(_ n: Int) -> String { t("[ 받은편지함 · \(n)통 ]", "[ Mailbox · \(n) ]") }
+    public static var mailboxEmpty: String {
         t("아직 받은 엽서가 없어요. 여행 간 물고기가 보내줄 거예요.", "No postcards yet — your travelers will write.")
     }
-    static var mailboxEnlarge: String { t("받은편지함을 보려면 창을 키워주세요", "Enlarge the window to read mail") }
-    static func statusUnread(_ n: Int) -> String { "\u{2709} \(n)" }
+    public static var mailboxEnlarge: String { t("받은편지함을 보려면 창을 키워주세요", "Enlarge the window to read mail") }
+    public static func statusUnread(_ n: Int) -> String { "\u{2709} \(n)" }
 
-    static let postcardLocationCount = 8
-    static func postcardLocation(_ i: Int) -> String {
+    public static let postcardLocationCount = 8
+    public static func postcardLocation(_ i: Int) -> String {
         let ko = ["산호초", "심해", "난파선", "해초 숲", "먼바다", "열대 섬", "따뜻한 해류", "반짝이는 여울"]
         let en = ["the coral reef", "the deep", "a shipwreck", "the kelp forest",
                   "the open sea", "a tropical isle", "a warm current", "a sparkling shoal"]
         let a = isKorean ? ko : en
         return a[min(max(0, i), a.count - 1)]
     }
-    static let postcardMessageCount = 8
-    static func postcardMessage(_ i: Int) -> String {
+    public static let postcardMessageCount = 8
+    public static func postcardMessage(_ i: Int) -> String {
         let ko = ["여긴 정말 넓어요!", "새 친구를 잔뜩 사귀었어요", "가끔 어항이 그리워요", "물이 아주 따뜻해요",
                   "오늘 고래를 봤어요!", "모험은 계속돼요", "당신 덕분에 용기가 났어요", "별빛 아래서 헤엄쳐요"]
         let en = ["It's so vast out here!", "Made tons of new friends", "I miss the tank sometimes",
@@ -398,7 +408,7 @@ enum L10n {
         let a = isKorean ? ko : en
         return a[min(max(0, i), a.count - 1)]
     }
-    static func relativeTime(_ at: Double) -> String {
+    public static func relativeTime(_ at: Double) -> String {
         let s = max(0, Date().timeIntervalSince1970 - at)
         if s < 90 { return t("방금", "just now") }
         let m = Int(s / 60)
@@ -410,94 +420,94 @@ enum L10n {
 
     // MARK: - Adoption (분양/입양)
 
-    static func releasedCLI(_ name: String) -> String {
+    public static func releasedCLI(_ name: String) -> String {
         t("\(name) 분양 준비 완료! 아래 코드를 친구에게 전해주세요 (친구는 aquarium --adopt <코드> 실행):",
           "\(name) is ready to gift! Share this code with a friend (they run: aquarium --adopt <code>):")
     }
-    static func releaseNotFound(_ name: String) -> String {
+    public static func releaseNotFound(_ name: String) -> String {
         t("'\(name)' 물고기를 찾을 수 없어요. 도감(i)에서 이름을 확인해주세요.",
           "No fish named '\(name)'. Check names in the log (i).")
     }
-    static var releaseFailed: String { t("분양 코드 생성에 실패했어요", "Failed to create the gift code") }
-    static func releaseDeparted(_ name: String) -> String {
+    public static var releaseFailed: String { t("분양 코드 생성에 실패했어요", "Failed to create the gift code") }
+    public static func releaseDeparted(_ name: String) -> String {
         isKorean ? "\(name)\(subjectParticle(name)) 새 어항으로 떠났어요 👋" : "\(name) set off for a new tank 👋"
     }
-    static var adoptInvalid: String { t("올바른 분양 코드가 아니에요", "That is not a valid gift code") }
-    static func adoptQueued(_ name: String) -> String {
+    public static var adoptInvalid: String { t("올바른 분양 코드가 아니에요", "That is not a valid gift code") }
+    public static func adoptQueued(_ name: String) -> String {
         t("\(name) 입양 코드를 받았어요! 어항을 열면 헤엄쳐 들어옵니다.",
           "Got the gift code for \(name)! It will swim in when you open your tank.")
     }
-    static var adoptQueueFailed: String {
+    public static var adoptQueueFailed: String {
         t("입양 코드는 멀쩡한데 대기열에 넣지 못했어요. 잠시 뒤 다시 시도해주세요.",
           "The gift code is fine, but it could not be queued. Please try again shortly.")
     }
-    static func adopted(_ name: String, from: String?) -> String {
+    public static func adopted(_ name: String, from: String?) -> String {
         let base = isKorean ? "\(name)\(objectParticle(name)) 입양했어요!" : "You adopted \(name)!"
         guard let from, !from.isEmpty else { return base }
         return isKorean ? base + " (\(from)네 어항 출신)" : base + " (from \(from)'s tank)"
     }
-    static func rosterTravelers(_ n: Int) -> String { t("여행 온 물고기   \(n)마리", "Travelers   \(n)") }
+    public static func rosterTravelers(_ n: Int) -> String { t("여행 온 물고기   \(n)마리", "Travelers   \(n)") }
 
     // MARK: - Achievements
 
-    static func achievementUnlocked(_ name: String) -> String {
+    public static func achievementUnlocked(_ name: String) -> String {
         t("🏆 업적 달성: \(name)!", "🏆 Achievement unlocked: \(name)!")
     }
-    static func achievementsBatch(_ n: Int) -> String {
+    public static func achievementsBatch(_ n: Int) -> String {
         t("🏆 그동안의 업적 \(n)개를 획득했어요!", "🏆 Unlocked \(n) achievements so far!")
     }
-    static func achievementsHeader(_ have: Int, _ total: Int) -> String {
+    public static func achievementsHeader(_ have: Int, _ total: Int) -> String {
         t("🏆 업적 \(have)/\(total) 달성", "🏆 Achievements \(have)/\(total)")
     }
-    static func rosterAchievements(_ have: Int, _ total: Int) -> String {
+    public static func rosterAchievements(_ have: Int, _ total: Int) -> String {
         t("업적   \(have)/\(total)  (aquarium --achievements)", "Badges   \(have)/\(total)  (aquarium --achievements)")
     }
-    static func cardAchievements(_ have: Int, _ total: Int) -> String {
+    public static func cardAchievements(_ have: Int, _ total: Int) -> String {
         t("🏆 업적 \(have)/\(total) 달성", "🏆 \(have)/\(total) achievements")
     }
 
     // MARK: - Commit rewards
 
-    static func rewardDeposited(_ pending: Int) -> String {
+    public static func rewardDeposited(_ pending: Int) -> String {
         t("><> 커밋 보상 적립! 어항에 먹이가 도착할 거예요 (대기 \(pending)건)",
           "><> Commit reward banked! Food is on its way to your tank (\(pending) pending)")
     }
-    static func rewardArrived(_ commits: Int) -> String {
+    public static func rewardArrived(_ commits: Int) -> String {
         t("커밋 보상 도착! 먹이가 쏟아집니다 (커밋 \(commits)건)",
           "Commit reward! Food incoming (\(commits) commits)")
     }
-    static func rosterCommits(_ n: Int) -> String { t("커밋 보상   \(n)회", "Commits   \(n) rewarded") }
-    static func cardCommits(_ n: Int) -> String {
+    public static func rosterCommits(_ n: Int) -> String { t("커밋 보상   \(n)회", "Commits   \(n) rewarded") }
+    public static func cardCommits(_ n: Int) -> String {
         t("커밋 \(n)번이 이 물고기들을 키웠어요", "Raised on \(n) commits")
     }
-    static func hookInstalled(_ path: String) -> String {
+    public static func hookInstalled(_ path: String) -> String {
         t("post-commit 훅 설치 완료: \(path)\n이제 커밋할 때마다 물고기 먹이가 적립됩니다!",
           "post-commit hook installed: \(path)\nEvery commit now feeds your fish!")
     }
-    static var hookAlreadyInstalled: String { t("이미 설치되어 있어요", "Hook already installed") }
-    static var hookNoRepo: String { t("git 저장소가 아니에요 — 레포 안에서 실행해주세요", "Not a git repository — run inside a repo") }
+    public static var hookAlreadyInstalled: String { t("이미 설치되어 있어요", "Hook already installed") }
+    public static var hookNoRepo: String { t("git 저장소가 아니에요 — 레포 안에서 실행해주세요", "Not a git repository — run inside a repo") }
 
     // MARK: - Card
 
-    static var cardTitle: String { t("나의 터미널 어항", "My Terminal Aquarium") }
-    static func cardSwimming(count: Int, days: Int) -> String {
+    public static var cardTitle: String { t("나의 터미널 어항", "My Terminal Aquarium") }
+    public static func cardSwimming(count: Int, days: Int) -> String {
         t("물고기 \(count)마리와 \(days)일째 헤엄치는 중", "Swimming with \(count) fish · day \(days)")
     }
-    static func cardFriends(_ names: String) -> String {
+    public static func cardFriends(_ names: String) -> String {
         t("\(names) 그리고 친구들", "\(names) & friends")
     }
-    static func cardRecords(focus: Int, whale: Int, turtle: Int, octopus: Int, sunfish: Int) -> String {
+    public static func cardRecords(focus: Int, whale: Int, turtle: Int, octopus: Int, sunfish: Int) -> String {
         t("집중 \(focus)회 · 고래 \(whale) · 거북이 \(turtle) · 문어 \(octopus) · 개복치 \(sunfish)",
           "Focus \(focus) · whale \(whale) · turtle \(turtle) · octopus \(octopus) · sunfish \(sunfish)")
     }
-    static func cardSaved(_ path: String) -> String {
+    public static func cardSaved(_ path: String) -> String {
         t("어항 명함을 저장했어요: \(path)", "Tank card saved: \(path)")
     }
-    static var cardFailed: String { t("명함 저장에 실패했어요", "Failed to save the card") }
+    public static var cardFailed: String { t("명함 저장에 실패했어요", "Failed to save the card") }
 
     // MARK: - Songs
 
-    static func songTitle(_ index: Int) -> String {
+    public static func songTitle(_ index: Int) -> String {
         let titles: [(ko: String, en: String)] = [
             ("물속 산책", "Underwater Stroll"),
             ("달빛 어항", "Moonlit Tank"),
@@ -517,7 +527,7 @@ enum L10n {
     /// 권한 창 직전. 프롬프트에 뜨는 이름이 aquarium이 아니라 **터미널 앱**이라는
     /// 걸 미리 말해줘야 사람이 "왜 갑자기 iTerm이?" 하며 거절하지 않는다.
     /// 번들 없는 CLI라 TCC가 권한을 실행시킨 터미널 앱에 귀속시킨다.
-    static var clapPrompting: String {
+    public static var clapPrompting: String {
         t("""
           👏 박수 반응에는 마이크가 필요합니다.
              곧 뜨는 권한 창은 'aquarium'이 아니라 지금 쓰는 터미널 앱 이름
@@ -535,7 +545,7 @@ enum L10n {
           """)
     }
 
-    static var clapDenied: String {
+    public static var clapDenied: String {
         t("""
           👏 마이크 권한이 없어 박수 반응을 끕니다.
              시스템 설정 > 개인정보 보호 및 보안 > 마이크 에서 **터미널 앱**
@@ -552,17 +562,17 @@ enum L10n {
           """)
     }
 
-    static var clapRestricted: String {
+    public static var clapRestricted: String {
         t("👏 이 맥은 정책(MDM·스크린타임)으로 마이크가 잠겨 있어 박수 반응을 끕니다.",
           "👏 Microphone use is restricted on this Mac (MDM or Screen Time) — clap reactions are off.")
     }
 
-    static var clapNoMicrophone: String {
+    public static var clapNoMicrophone: String {
         t("👏 마이크를 찾지 못해 박수 반응을 끕니다 (내장 마이크가 없는 Mac mini 등).",
           "👏 No microphone found — clap reactions are off (a Mac mini with no built-in mic, for example).")
     }
 
-    static var clapEngineFailed: String {
+    public static var clapEngineFailed: String {
         t("👏 오디오 입력을 열 수 없어 박수 반응을 끕니다 (다른 앱이 마이크를 독점 중일 수 있습니다).",
           "👏 Couldn't open audio input — clap reactions are off (another app may have exclusive use of the mic).")
     }
@@ -574,12 +584,12 @@ enum L10n {
     /// true가 되어 박수 반응이 살아난다. 몇 주 무인으로 도는 전시에서 USB 마이크가
     /// 잠깐 빠졌다 다시 꽂히는 경우를 재시작 없이 넘긴다. 그래서 문구도 "껐다"가
     /// 아니라 "지금은 안 된다 + 들어오면 켜진다"로 쓴다.
-    static var clapSilentInput: String {
+    public static var clapSilentInput: String {
         t("👏 마이크는 열렸는데 소리가 전혀 들어오지 않습니다. 입력 볼륨과 음소거를 확인해주세요 — 소리가 들어오면 박수 반응이 저절로 켜집니다.",
           "👏 The mic opened but no audio is coming in. Check the input volume and mute switch — clap reactions turn on by themselves once signal arrives.")
     }
 
-    static var clapPromptTimedOut: String {
+    public static var clapPromptTimedOut: String {
         t("👏 권한 응답이 없어 박수 반응 없이 계속합니다.",
           "👏 No answer to the permission prompt — continuing without clap reactions.")
     }
@@ -587,7 +597,7 @@ enum L10n {
     /// 실패 경로 공통 꼬리말. 어느 갈래에서도 exit하지 않으므로 "어항은 돈다"가
     /// 항상 참이다. 상태줄의 👂가 실제 상태를 계속 알려주므로 여기서 영구적인
     /// 상태를 단정하지 않는다.
-    static var clapDisabled: String {
+    public static var clapDisabled: String {
         t("   어항은 그대로 돌아갑니다. 마이크가 살아나면 상태줄에 👂 가 뜹니다.",
           "   The tank runs normally. A 👂 appears in the status bar if the mic comes alive.")
     }
@@ -604,8 +614,8 @@ enum L10n {
     ///
     /// ⚠️ 「수초 뒤」/"behind" 를 쓰지 않는다. 렌더러에 z-order가 없어서 물고기가
     /// 수초를 가린다. 위치는 말하되 깊이는 말하지 않는다.
-    static let clapHeardCount = 3
-    static func clapHeard(_ i: Int, night: Bool) -> String {
+    public static let clapHeardCount = 3
+    public static func clapHeard(_ i: Int, night: Bool) -> String {
         if night {
             return t("👏 박수 소리에 자던 물고기들이 깼어요 — 금방 다시 잠들 거예요",
                      "👏 The clap woke the sleeping fish — they'll drift off again")
@@ -624,7 +634,7 @@ enum L10n {
 
     /// QR 아래에 붙는 한 줄. QR이 가리키는 곳은 AQUARIUM_LOUNGE_QR로 바뀌므로
     /// 목적지를 특정하는 문구는 쓰지 않는다.
-    static var loungeQRCaption: String { t("휴대폰으로 스캔해보세요", "Scan me") }
+    public static var loungeQRCaption: String { t("휴대폰으로 스캔해보세요", "Scan me") }
 
     /// 무인 전시의 상태줄 문구. 키바인드 목록(helpLine)은 대부분의 키가 막혀 있어
     /// 무용하므로 이걸로 갈아 끼운다. 인덱스 풀 패턴은 postcardLocation과 동일.
@@ -633,8 +643,8 @@ enum L10n {
     /// 아니라 오디오 엔진이 돌고 신호가 들어온다는 뜻이다(World.clapLive).
     /// 권한이 거부된 채 몇 주를 도는 전시가 "박수를 쳐보세요"라고 말하면, 지나가는
     /// 사람은 죽은 마이크 앞에서 박수를 친다.
-    static func loungeHintCount(clap: Bool) -> Int { clap ? 6 : 5 }
-    static func loungeHint(_ i: Int, clap: Bool = false) -> String {
+    public static func loungeHintCount(clap: Bool) -> Int { clap ? 6 : 5 }
+    public static func loungeHint(_ i: Int, clap: Bool = false) -> String {
         var ko = ["f를 누르면 먹이를 줄 수 있어요",
                   "물고기를 클릭하면 화들짝 놀라요",
                   "QR을 찍어보세요",

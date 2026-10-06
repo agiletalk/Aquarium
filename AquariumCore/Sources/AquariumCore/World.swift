@@ -1,17 +1,11 @@
 import Foundation
 
-struct Cell {
-    var ch: Character = " "
-    var color: UInt8 = 252
-    var glow: Bool = false // glowing cells skip night-time dimming
-}
-
-enum Lighting: String {
+public enum Lighting: String {
     case auto, day, night
 }
 
 /// 계절 테마 — 조명(Lighting)과 독립된 축. 세이브/CLI 표기는 "none".
-enum Season: String {
+public enum Season: String {
     case auto, off = "none", summer
 }
 
@@ -215,9 +209,9 @@ struct Jellyfish {
     }
 }
 
-final class World {
-    private(set) var cols: Int
-    private(set) var rows: Int
+public final class World {
+    public private(set) var cols: Int
+    public private(set) var rows: Int
 
     var fish: [Fish] = []
     var bubbles: [Bubble] = []
@@ -234,26 +228,18 @@ final class World {
     private var nextEvolveAt: Double = 0
     private var nextQRAt: Double = 0
     private var qrShownUntil: Double = 0
-    /// 모듈 격자는 페이로드가 고정이라 한 번만 만든다 (매 프레임 CoreImage를 돌릴 순 없다).
-    private lazy var qrModules: [[Bool]]? = QRCode.modules(for: Self.loungeQRPayload)
-
-    /// 공개 레포에 사내 채널 주소를 박을 수 없으니 주소는 주입받는다.
-    /// 라운지 맥에서 env 한 줄만 바꾸면 되고 재빌드가 필요 없다.
-    ///
-    /// 기본값에서 "https://"를 뺀 건 코드 크기 때문이다. 8자가 줄면서 QR 버전이
-    /// 3→2로 내려가 화면에서 33x17 → 29x15가 된다. 폰 카메라는 스킴 없는 도메인도
-    /// 링크로 인식한다. 주소가 길수록 QR이 커지므로 env로 바꿀 때도 짧을수록 좋다.
-    static var loungeQRPayload: String {
-        let env = ProcessInfo.processInfo.environment["AQUARIUM_LOUNGE_QR"] ?? ""
-        return env.isEmpty ? "github.com/agiletalk/Aquarium" : env
+    /// 라운지 QR을 지금 띄울 때인지. 패널 셋 중 하나라도 열려 있으면 접는다 —
+    /// 겹쳐 그리면 둘 다 못 읽는다. QR 자체(CoreImage)는 렌더러가 만든다.
+    public var loungeQRShowing: Bool {
+        lounge && now < qrShownUntil && !rosterOpen && !mailboxOpen && !sponsorOpen
     }
     private var visitorSeen: [String: Int] = [:]
-    private let debugVisitor = ProcessInfo.processInfo.environment["AQUARIUM_VISITOR"]
+    private var debugVisitor: String? { config.debugVisitor }
 
     private var usedNames: Set<String> = []
-    private(set) var rosterOpen = false
-    private(set) var mailboxOpen = false
-    private(set) var sponsorOpen = false
+    public private(set) var rosterOpen = false
+    public private(set) var mailboxOpen = false
+    public private(set) var sponsorOpen = false
     private var travelers: [Traveler] = []
     private var mailbox: [Postcard] = []
     private var nextPostcardCheck: Double = 0
@@ -284,7 +270,7 @@ final class World {
     ///
     /// init 이후에 결정되므로 var다. main.swift가 매 프레임 갱신한다.
     /// 세이브에 남기지 않는다 — 전시 맥의 실행 환경이지 어항의 속성이 아니다.
-    var clapLive = false
+    public var clapLive = false
 
     private var message = ""
     private var messageUntil: Double = 0
@@ -292,34 +278,34 @@ final class World {
     private var nextBreed: Double = 0
     private var tick = 0
 
-    private(set) var lighting: Lighting = .auto
-    private let terminalDark: Bool?   // OSC 11 answer captured at startup
+    public private(set) var lighting: Lighting = .auto
+    /// OSC 11 answer captured at startup (터미널 전용 입력 — 데스크톱은 nil).
+    public var terminalDark: Bool? { config.terminalDark }
     private var envNight = false      // auto-mode verdict, refreshed periodically
     private var nextEnvCheck: Double = 0
     private var nextAutosave: Double = 0
     private var tankBornAt: Double = 0 // wall-clock epoch
-    private let ephemeral: Bool        // card rendering: never write the save file
+    // TODO(v0.2): ephemeral은 쓰기 방지가 아니다 — applyCommitReward·evolveFish·
+    // deliverPostcards가 게이트 없이 writeSave()를 부른다. 데스크톱은 그래서
+    // ephemeral 대신 config.storage(별도 세이브 경로·큐 폴링 끔)로 격리한다.
+    private var ephemeral: Bool { config.ephemeral } // card rendering: never write the save file
 
-    private(set) var season: Season = .auto
+    public private(set) var season: Season = .auto
 
     /// 라운지 전시 모드 — 무인 상설 전시용. Lighting·Season과 직교하며 세이브에 남지 않는다
     /// (전시 맥의 실행 옵션이지 어항의 속성이 아니다).
-    private(set) var lounge = false
+    public private(set) var lounge = false
 
     /// 라운지 타이머(번식 2~3일, 진화 6~12시간)는 눈으로 검증할 방법이 없어 압축 배율을 둔다.
     /// AQUARIUM_VISITOR와 같은 성격의 테스트용 탈출구 — --help·README에는 싣지 않는다.
-    private let loungeFast = ProcessInfo.processInfo.environment["AQUARIUM_LOUNGE_FAST"] != nil
+    private var loungeFast: Bool { config.loungeFast }
     private var loungeScale: Double { loungeFast ? 1.0 / 1200 : 1 }
 
-    var isNight: Bool { lighting == .night || (lighting == .auto && envNight) }
+    public var isNight: Bool { lighting == .night || (lighting == .auto && envNight) }
 
     /// 여름 판정 — auto면 달력 기준 6–8월. isNight와 직교한다(여름 밤엔 별/달이 그대로).
-    var isSummer: Bool {
-        switch season {
-        case .summer: return true
-        case .off: return false
-        case .auto: return (6...8).contains(Calendar.current.component(.month, from: Date()))
-        }
+    public var isSummer: Bool {
+        Resolve.isSummer(season: season, month: Calendar.current.component(.month, from: Date()))
     }
 
     private var now: Double { ProcessInfo.processInfo.systemUptime }
@@ -331,10 +317,19 @@ final class World {
     private var sandRow: Int { gridRows - 2 }
     private var swimMinRow: Int { 2 }
     private var swimMaxRow: Int { sandRow - 1 }
+    public var layout: TankLayout {
+        TankLayout(swimMinRow: swimMinRow, swimMaxRow: swimMaxRow, sandRow: sandRow)
+    }
 
     /// 밀도 공식(cols*rows/80)은 그대로 두고 천장만 올린다 — 화면이 커져도 물고기
     /// 점유율은 일정하고, 대형 전시 디스플레이에서만 40마리 상한이 풀린다.
-    private var maxFish: Int { max(8, min(lounge ? 120 : 40, cols * rows / 80)) }
+    private var maxFish: Int { max(8, min(fishCap ?? (lounge ? 120 : 40), cols * rows / 80)) }
+
+    /// 정원 상한(앱 설정). 줄여도 이미 있는 물고기를 내보내지 않는다 — 번식만 멈춘다.
+    private var fishCap: Int?
+    public func setFishCap(_ cap: Int?) { fishCap = cap }
+    /// 지금 정원 (화면 밀도 반영).
+    public var capacity: Int { maxFish }
 
     /// 라운지 어항은 몇 주~몇 달에 걸쳐 자라야 전시 서사가 된다. 15~25분 → 2~3일.
     private var breedInterval: ClosedRange<Double> {
@@ -343,13 +338,19 @@ final class World {
         return (base.lowerBound * loungeScale)...(base.upperBound * loungeScale)
     }
 
-    init(cols: Int, rows: Int, terminalDark: Bool? = nil, restoring save: SaveState? = nil,
-         ephemeral: Bool = false, lounge: Bool = false) {
+    /// resolve 결과(RunConfig)와 외부 효과(소리·브라우저·다크 모드 조회)를 주입받는다.
+    /// World는 환경 변수·파일 경로·프로세스를 스스로 찾지 않는다.
+    private let config: RunConfig
+    private let effects: WorldEffects
+
+    public init(cols: Int, rows: Int, config: RunConfig, restoring save: SaveState? = nil,
+                effects: WorldEffects) {
         self.cols = cols
         self.rows = rows
-        self.terminalDark = terminalDark
-        self.ephemeral = ephemeral
-        self.lounge = lounge
+        self.config = config
+        self.effects = effects
+        self.lounge = config.lounge
+        self.fishCap = config.fishCap
         startTime = ProcessInfo.processInfo.systemUptime
         nextBreed = startTime + Double.random(in: breedInterval)
         tankBornAt = Date().timeIntervalSince1970
@@ -380,7 +381,7 @@ final class World {
         deliverPostcards(announce: false)
     }
 
-    func resize(cols: Int, rows: Int) {
+    public func resize(cols: Int, rows: Int) {
         let colsChanged = cols != self.cols
         self.cols = cols
         self.rows = rows
@@ -469,7 +470,7 @@ final class World {
         }
     }
 
-    func saveState() -> SaveState {
+    public func saveState() -> SaveState {
         let now = self.now
         return SaveState(
             savedAt: Date().timeIntervalSince1970,
@@ -500,18 +501,19 @@ final class World {
             season: season.rawValue)
     }
 
-    func writeSave() {
-        SaveStore.write(saveState())
+    public func writeSave() {
+        guard let url = config.storage.saveURL else { return }
+        SaveStore.write(saveState(), to: url)
     }
 
     // MARK: - Lighting
 
-    func setLighting(_ mode: Lighting) {
+    public func setLighting(_ mode: Lighting) {
         lighting = mode
         refreshEnvNight()
     }
 
-    func toggleLighting() {
+    public func toggleLighting() {
         switch lighting {
         case .auto: lighting = .night
         case .night: lighting = .day
@@ -527,32 +529,17 @@ final class World {
 
     private func refreshEnvNight() {
         let hour = Calendar.current.component(.hour, from: Date())
-        let nightHours = hour >= 19 || hour < 7
-        let dark = terminalDark ?? World.systemPrefersDark()
-        envNight = dark || nightHours
-    }
-
-    private static func systemPrefersDark() -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/defaults")
-        process.arguments = ["read", "-g", "AppleInterfaceStyle"]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        do { try process.run() } catch { return false }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return false }
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        return output.contains("Dark")
+        let dark = terminalDark ?? effects.systemPrefersDark()
+        envNight = Resolve.isEnvNight(hour: hour, dark: dark)
     }
 
     // MARK: - Season (계절)
 
-    func setSeason(_ mode: Season) {
+    public func setSeason(_ mode: Season) {
         season = mode
     }
 
-    func toggleSeason() {
+    public func toggleSeason() {
         switch season {
         case .auto: season = .summer
         case .summer: season = .off
@@ -710,7 +697,7 @@ final class World {
 
     // MARK: - Input
 
-    func feed() {
+    public func feed() {
         guard food.count < 60 else { return }
         sprinkleFood(Int.random(in: 4...7))
         // 여름 한정: 손으로 준 먹이에만 수박 한 조각이 섞인다
@@ -744,13 +731,16 @@ final class World {
 
     // MARK: - Focus (pomodoro)
 
-    func startFocus(minutes: Int) {
+    public func startFocus(minutes: Int) {
         let clamped = min(180, max(1, minutes))
         focusUntil = now + Double(clamped) * 60
         post(L10n.focusStarted(clamped))
     }
 
-    func toggleFocus() {
+    /// 집중(뽀모도로) 타이머가 돌고 있는지.
+    public var isFocusing: Bool { focusUntil != nil }
+
+    public func toggleFocus() {
         if focusUntil != nil {
             focusUntil = nil
             post(L10n.focusCancelled)
@@ -779,7 +769,7 @@ final class World {
                                   phase: Double.random(in: 0...(2 * .pi)),
                                   speed: Double.random(in: 0.2...0.4)))
         }
-        Sound.playChime()
+        effects.playFocusComplete()
         post(L10n.focusComplete(focusDone))
         if !ephemeral { writeSave() }
     }
@@ -789,12 +779,12 @@ final class World {
         messageUntil = now + 4
     }
 
-    func toggleRoster() {
+    public func toggleRoster() {
         rosterOpen.toggle()
         if rosterOpen { mailboxOpen = false; sponsorOpen = false }
     }
 
-    func toggleMailbox() {
+    public func toggleMailbox() {
         mailboxOpen.toggle()
         if mailboxOpen {
             rosterOpen = false
@@ -803,25 +793,25 @@ final class World {
         }
     }
 
-    func toggleSponsor() {
+    public func toggleSponsor() {
         sponsorOpen.toggle()
         if sponsorOpen { rosterOpen = false; mailboxOpen = false }
     }
 
-    func openSponsor() {
+    public func openSponsor() {
         guard sponsorOpen else { return }
-        Support.openInBrowser()
+        effects.openSponsor()
         post(L10n.sponsorOpened)
     }
 
-    func toggleMusic() {
-        let wasPlaying = MusicPlayer.shared.isPlaying
-        post(MusicPlayer.shared.toggle())
-        if !wasPlaying && MusicPlayer.shared.isPlaying { bump("music") }
+    public func toggleMusic() {
+        let wasPlaying = effects.isMusicPlaying
+        post(effects.toggleMusic())
+        if !wasPlaying && effects.isMusicPlaying { bump("music") }
     }
 
     /// Live food: a school of brine shrimp that actively flees the fish.
-    func feedLive() {
+    public func feedLive() {
         guard cols > 12, shrimp.count < 30 else { return }
         let now = self.now
         let originX = Double.random(in: 4...Double(cols - 5))
@@ -843,7 +833,7 @@ final class World {
     ///
     /// **렌더 루프에서만 부른다.** 오디오 스레드에서 부르면 updateFish의
     /// `var f = fish[i] … fish[i] = f` 패턴이 조용히 깨진다.
-    func clap() {
+    public func clap() {
         let now = self.now
 
         // 불응기. 지나가던 사람이 5초에 열 번 치면 어항이 계속 발작하고 post()의
@@ -879,7 +869,7 @@ final class World {
         clapIndex = (clapIndex + 1) % L10n.clapHeardCount
 
         // 효과음은 넣지 않는다. 두 가지 독립적인 이유가 있다.
-        // (1) Sound.playTouch()는 afplay로 라운지 스피커에 소리를 쏘는데, 그게
+        // (1) effects.playTouch()(터미널: afplay)는 라운지 스피커에 소리를 쏘는데, 그게
         //     방금 이 이벤트를 트리거한 마이크와 같은 방이다. Pop.aiff는 더블
         //     클랩 감지기가 잡도록 만들어진 바로 그 광대역 클릭이고, 0.15초
         //     디바운스는 에코 캔슬러가 아니다.
@@ -889,7 +879,7 @@ final class World {
     }
 
     /// Handles a mouse click at 0-based grid coordinates.
-    func touch(col: Int, row: Int) {
+    public func touch(col: Int, row: Int) {
         if rosterOpen || mailboxOpen || sponsorOpen {
             rosterOpen = false
             mailboxOpen = false
@@ -911,7 +901,7 @@ final class World {
 
             post(L10n.touchedBy(f.name, personality: f.personality, mood: mood(f)))
             bump("touch"); if isNight { bump("touchNight") }
-            Sound.playTouch()
+            effects.playTouch()
             fish[i].panicUntil = now + traits(f.personality).panic
             fish[i].dir = Double(c0 + f.art.count / 2) >= Double(col) ? 1 : -1
             fish[i].vy = Double.random(in: -0.25...0.25)
@@ -933,7 +923,7 @@ final class World {
 
     // MARK: - Simulation
 
-    func update() {
+    public func update() {
         tick += 1
         let now = self.now
 
@@ -945,13 +935,13 @@ final class World {
             nextAutosave = now + 60
             writeSave()
         }
-        if let title = MusicPlayer.shared.pollNewTitle() {
+        if let title = effects.pollNewSongTitle() {
             post(L10n.nowPlaying(title))
         }
         if let deadline = focusUntil, now >= deadline {
             completeFocus(now)
         }
-        if !ephemeral, now >= nextInboxCheck {
+        if !ephemeral, config.storage.pollsTerminalQueues, now >= nextInboxCheck {
             nextInboxCheck = now + 5
             let commits = RewardInbox.consume()
             if commits > 0 { applyCommitReward(commits) }
@@ -964,7 +954,7 @@ final class World {
             nextAchvCheck = now + 1
             for a in unlockSatisfied() {
                 post(L10n.achievementUnlocked(a.name))
-                Sound.playChime()
+                effects.playChime()
             }
         }
         if !ephemeral, now >= nextPostcardCheck {
@@ -1604,7 +1594,7 @@ final class World {
         fish[index].morph = morph
         bump("morphs")
         post(L10n.evolved(fish[index].name, L10n.morphName(morph)))
-        Sound.playChime()
+        effects.playChime()
         writeSave()
     }
 
@@ -1640,7 +1630,7 @@ final class World {
         writeSave()
         if announce, let last = mailbox.last {
             post(L10n.postcardArrived(last.from, L10n.postcardLocation(last.location)))
-            Sound.playChime()
+            effects.playChime()
         } else if !announce {
             post(L10n.postcardsBatch(delivered))
         }
@@ -1668,7 +1658,7 @@ final class World {
             fish.append(f)
             bump("adopted")
             post(L10n.adopted(f.name, from: f.origin.last))
-            Sound.playChime()
+            effects.playChime()
             return
         }
     }
@@ -1701,42 +1691,9 @@ final class World {
 
     // MARK: - Rendering
 
-    func render() -> String {
-        guard cols >= 34, rows >= 12 else {
-            return ANSI.home + ANSI.clear + ANSI.fg(220)
-                + L10n.enlargeTerminal + ANSI.reset
-        }
-
-        let grid = composeGrid()
-
-        // 프레임 전체를 동기화 출력으로 감싼다 — 터미널이 중간 상태를 그리지 않는다.
-        var out = ANSI.syncBegin + ANSI.home
-        var lastColor: UInt8 = 0
-        for (r, row) in grid.enumerated() {
-            if r > 0 { out += "\r\n" }
-            for cell in row {
-                if cell.ch == " " {
-                    out.append(" ")
-                    continue
-                }
-                let color = cell.glow ? cell.color : dimmed(cell.color)
-                if color != lastColor {
-                    out += ANSI.fg(color)
-                    lastColor = color
-                }
-                out.append(cell.ch)
-            }
-        }
-        out += "\r\n" + statusLine(now) + "\u{1B}[K"
-        if rosterOpen { out += rosterOverlay() }
-        if mailboxOpen { out += mailboxOverlay() }
-        if sponsorOpen { out += sponsorOverlay() }
-        // 패널 셋 중 하나라도 열려 있으면 QR을 접는다 — 겹쳐 그리면 둘 다 못 읽는다.
-        // (라운지 키오스크 가드가 패널 토글을 막지만 코드로도 보장한다.)
-        if lounge, now < qrShownUntil, !rosterOpen, !mailboxOpen, !sponsorOpen {
-            out += loungeQROverlay()
-        }
-        return out + ANSI.syncEnd
+    /// 렌더러가 실제로 칠할 색. glow 셀은 밤에도 감광하지 않는다.
+    public func displayColor(_ cell: Cell) -> UInt8 {
+        cell.glow ? cell.color : dimmed(cell.color)
     }
 
     /// Darkens a 256-color index at night; identity during the day.
@@ -1755,7 +1712,7 @@ final class World {
         }
     }
 
-    func composeGrid() -> [[Cell]] {
+    public func composeGrid() -> [[Cell]] {
         var grid = [[Cell]](repeating: [Cell](repeating: Cell(), count: cols), count: gridRows)
         let now = self.now
 
@@ -2064,72 +2021,64 @@ final class World {
         }
     }
 
-    private func statusLine(_ now: Double) -> String {
+    /// 상태줄을 (텍스트, 색) 조각으로 낸다. 터미널은 조각마다 전경색을 바꿔 이어
+    /// 붙이고, 데스크톱은 셀로 그린다. `hints`가 false면 키 안내/라운지 힌트 칸을
+    /// 구분자째 뺀다 — 입력을 받지 않는 렌더러(바탕화면)용.
+    public func statusSegments(hints: Bool = true) -> [StatusSegment] {
+        let now = self.now
         let elapsed = Int(now - startTime)
         let timeStr = String(format: "%d:%02d", elapsed / 60, elapsed % 60)
         let days = max(1, Int((Date().timeIntervalSince1970 - tankBornAt) / 86400) + 1)
         let modeLabel = L10n.modeLabel(auto: lighting == .auto, night: isNight)
-        let sep = ANSI.fg(240) + "  |  "
-        var line = ANSI.fg(51) + " " + L10n.statusFish(fish.count)
-            + sep + ANSI.fg(214) + L10n.statusFood(food.count + shrimp.count)
-            + sep + ANSI.fg(250) + L10n.statusDay(days, timeStr)
-            + sep + ANSI.fg(147) + modeLabel
-            + (MusicPlayer.shared.isPlaying ? ANSI.fg(219) + " ♪" : "")
-            // 공용 공간에 상시 마이크를 두는 일이라, 문서로만 알리지 않고 화면에
-            // 상시 표시한다. 라운지 힌트는 15초에 한 번만 돌아오지만 이건 항상
-            // 보이고, --lounge 없이 --clap만 쓸 때도 보인다(그쪽엔 힌트가 없다).
-            // ♪와 같은 패턴이되 폭은 다르다 — 👂(U+1F442)는 East Asian Wide라
-            // 확정 2칸이다. 80칸에서 넘치지 않는지 실측했다.
-            + (clapLive ? ANSI.fg(245) + " 👂" : "")
+        let sep = StatusSegment("  |  ", 240)
+        var line: [StatusSegment] = [
+            StatusSegment(" " + L10n.statusFish(fish.count), 51),
+            sep, StatusSegment(L10n.statusFood(food.count + shrimp.count), 214),
+            sep, StatusSegment(L10n.statusDay(days, timeStr), 250),
+            sep, StatusSegment(modeLabel, 147),
+        ]
+        if effects.isMusicPlaying { line.append(StatusSegment(" ♪", 219)) }
+        // 공용 공간에 상시 마이크를 두는 일이라, 문서로만 알리지 않고 화면에
+        // 상시 표시한다. 라운지 힌트는 15초에 한 번만 돌아오지만 이건 항상
+        // 보이고, --lounge 없이 --clap만 쓸 때도 보인다(그쪽엔 힌트가 없다).
+        // ♪와 같은 패턴이되 폭은 다르다 — 👂(U+1F442)는 East Asian Wide라
+        // 확정 2칸이다. 80칸에서 넘치지 않는지 실측했다.
+        if clapLive { line.append(StatusSegment(" 👂", 245)) }
         if let deadline = focusUntil {
             let remain = max(0, Int(deadline - now))
             let clock = String(format: "%d:%02d", remain / 60, remain % 60)
-            line += sep + ANSI.fg(203) + L10n.statusFocus(clock)
+            line += [sep, StatusSegment(L10n.statusFocus(clock), 203)]
         }
         let unread = mailbox.filter { !$0.read }.count
-        if unread > 0 { line += sep + ANSI.fg(213) + L10n.statusUnread(unread) }
-        if lounge {
-            // 키바인드 목록은 대부분의 키가 막힌 무인 전시에선 무용하다.
-            // 15초마다 한 줄씩 돌아가며 지나가는 사람에게 말을 건다.
-            // 박수 줄은 clapLive일 때만 풀에 붙는다. clapLive가 기동 몇 프레임
-            // 뒤에 false→true로 바뀌면서 나눗수가 5→6이 되어 인덱스가 한 번
-            // 튄다 — 15초 로테이션에서 눈에 띄지 않고, 나중에 누가 이걸 버그로
-            // 쫓지 않게 여기 적어둔다.
-            let i = Int((now - startTime) / 15) % L10n.loungeHintCount(clap: clapLive)
-            line += sep + ANSI.fg(245) + L10n.loungeHint(i, clap: clapLive)
-        } else {
-            line += sep + ANSI.fg(245) + L10n.helpLine
+        if unread > 0 { line += [sep, StatusSegment(L10n.statusUnread(unread), 213)] }
+        if hints {
+            if lounge {
+                // 키바인드 목록은 대부분의 키가 막힌 무인 전시에선 무용하다.
+                // 15초마다 한 줄씩 돌아가며 지나가는 사람에게 말을 건다.
+                // 박수 줄은 clapLive일 때만 풀에 붙는다. clapLive가 기동 몇 프레임
+                // 뒤에 false→true로 바뀌면서 나눗수가 5→6이 되어 인덱스가 한 번
+                // 튄다 — 15초 로테이션에서 눈에 띄지 않고, 나중에 누가 이걸 버그로
+                // 쫓지 않게 여기 적어둔다.
+                let i = Int((now - startTime) / 15) % L10n.loungeHintCount(clap: clapLive)
+                line += [sep, StatusSegment(L10n.loungeHint(i, clap: clapLive), 245)]
+            } else {
+                line += [sep, StatusSegment(L10n.helpLine, 245)]
+            }
         }
         if now < messageUntil {
-            line += ANSI.fg(213) + "   " + message
+            line.append(StatusSegment("   " + message, 213))
         }
-        return line + ANSI.reset
+        return line
     }
 
     // MARK: - Roster panel (도감)
 
-    /// Hangul renders 2 columns wide in the terminal.
-    private func displayWidth(_ s: String) -> Int {
-        s.unicodeScalars.reduce(0) { width, scalar in
-            let wide = (0xAC00...0xD7A3).contains(scalar.value)
-                || (0x1100...0x115F).contains(scalar.value)
-                || (0x3130...0x318F).contains(scalar.value)
-            return width + (wide ? 2 : 1)
-        }
-    }
-
-    private func pad(_ s: String, to width: Int) -> String {
-        s + String(repeating: " ", count: max(0, width - displayWidth(s)))
-    }
+    private func pad(_ s: String, to width: Int) -> String { TextWidth.pad(s, to: width) }
 
     /// 긴 물고기(갈치 등) 아트를 도감 컬럼 폭에 맞게 축약 — 정렬·박스 유지
     private func artGlyph(_ f: Fish, max: Int) -> String {
         let s = String(f.art)
         return s.count <= max ? s : String(s.prefix(max - 1)) + "~"
-    }
-
-    private func pos(_ row: Int, _ col: Int) -> String {
-        "\u{1B}[\(row);\(col)H"
     }
 
     /// 도감에서 희귀 물고기 줄 색상 (normal은 기본 회백색)
@@ -2145,10 +2094,8 @@ final class World {
 
     /// Drawn with absolute cursor positioning over the live tank, so
     /// double-width Hangul can't shift the grid cells around it.
-    private func rosterOverlay() -> String {
-        guard cols >= 50, gridRows >= 12 else {
-            return pos(3, 3) + ANSI.fg(220) + " " + L10n.rosterEnlarge + " " + ANSI.reset
-        }
+    public func rosterPanel() -> PanelContent {
+        guard cols >= 50, gridRows >= 12 else { return .tooSmall(L10n.rosterEnlarge) }
         let innerW = min(46, cols - 8)
         let maxList = max(1, gridRows - 9)
         let sorted = fish.sorted { $0.bornAtEpoch < $1.bornAtEpoch }
@@ -2187,29 +2134,61 @@ final class World {
             lines.append((" " + L10n.rosterTravelers(travelers), 111))
         }
 
-        let startRow = 3
-        let startCol = max(2, (cols - innerW - 2) / 2 + 1)
-        let title = L10n.rosterTitle(fish.count)
-        var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
-            + ANSI.fg(51) + title
-            + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
-        var r = startRow + 1
-        for line in lines {
-            guard r < rows - 1 else { break }
-            out += pos(r, startCol) + ANSI.fg(245) + "|"
-                + ANSI.fg(line.color) + pad(line.text, to: innerW)
-                + ANSI.fg(245) + "|"
-            r += 1
-        }
-        out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
-        return out + ANSI.reset
+        return .box(Panel(startRow: 3,
+                          startCol: max(2, (cols - innerW - 2) / 2 + 1),
+                          innerWidth: innerW,
+                          title: L10n.rosterTitle(fish.count), titleColor: 51,
+                          lines: lines.map { PanelLine($0.text, $0.color) }))
     }
 
     /// 받은편지함 패널 (b 키)
-    private func mailboxOverlay() -> String {
-        guard cols >= 50, gridRows >= 12 else {
-            return pos(3, 3) + ANSI.fg(220) + " " + L10n.mailboxEnlarge + " " + ANSI.reset
+    /// 후원 안내 패널. `openHint`는 여는 방법 안내 — 터미널은 o 키, 데스크톱은 메뉴.
+    public func sponsorPanel(openHint: String = L10n.sponsorOpenHint) -> PanelContent {
+        guard cols >= 50, gridRows >= 10 else { return .tooSmall(L10n.sponsorEnlarge) }
+        let innerW = min(52, cols - 8)
+        let lines: [PanelLine] = [
+            PanelLine(" " + L10n.sponsorThanks1, 252),
+            PanelLine(" " + L10n.sponsorThanks2, 252),
+            PanelLine("", 252),
+            PanelLine(" \u{2615}  " + SupportLink.display, 45),
+            PanelLine("", 252),
+            PanelLine(" " + openHint, 245),
+        ]
+        return .box(Panel(startRow: 4,
+                          startCol: max(2, (cols - innerW - 2) / 2 + 1),
+                          innerWidth: innerW,
+                          title: L10n.sponsorTitle, titleColor: 219,
+                          lines: lines))
+    }
+
+    /// 업적 패널 — `aquarium --achievements`와 같은 목록(획득 ✔ · 미획득은 진행도).
+    /// 판정은 unlockSatisfied와 같은 합산 통계를 쓴다.
+    public func achievementsPanel() -> PanelContent {
+        guard cols >= 50, gridRows >= 12 else { return .tooSmall(L10n.achievementsEnlarge) }
+        let innerW = min(60, cols - 8)
+        let stats = Achievements.mergedStats(from: saveState())
+        let have = Achievements.all.filter { Achievements.isUnlocked($0, stats: stats) }.count
+        let maxList = max(1, gridRows - 7)
+        var lines: [PanelLine] = []
+        for a in Achievements.all.prefix(maxList) {
+            if Achievements.isUnlocked(a, stats: stats) {
+                lines.append(PanelLine(" \u{2714} \(a.icon) \(a.name)  — \(a.desc)", 84))
+            } else {
+                lines.append(PanelLine(" \u{00B7} \(a.icon) \(a.name)  (\(stats[a.stat] ?? 0)/\(a.threshold))", 240))
+            }
         }
+        if Achievements.all.count > maxList {
+            lines.append(PanelLine(" " + L10n.rosterMore(Achievements.all.count - maxList), 245))
+        }
+        return .box(Panel(startRow: 3,
+                          startCol: max(2, (cols - innerW - 2) / 2 + 1),
+                          innerWidth: innerW,
+                          title: L10n.achievementsTitle(have, Achievements.all.count), titleColor: 226,
+                          lines: lines))
+    }
+
+    public func mailboxPanel() -> PanelContent {
+        guard cols >= 50, gridRows >= 12 else { return .tooSmall(L10n.mailboxEnlarge) }
         let innerW = min(54, cols - 8)
         let maxCards = max(1, (gridRows - 8) / 2)
         let sorted = mailbox.sorted { $0.at > $1.at }
@@ -2228,119 +2207,10 @@ final class World {
             }
         }
 
-        let startRow = 3
-        let startCol = max(2, (cols - innerW - 2) / 2 + 1)
-        let title = L10n.mailboxTitle(mailbox.count)
-        var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
-            + ANSI.fg(213) + title
-            + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
-        var r = startRow + 1
-        for line in lines {
-            guard r < rows - 1 else { break }
-            out += pos(r, startCol) + ANSI.fg(245) + "|"
-                + ANSI.fg(line.color) + pad(line.text, to: innerW)
-                + ANSI.fg(245) + "|"
-            r += 1
-        }
-        out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
-        return out + ANSI.reset
-    }
-
-    /// 후원 안내 패널 (s 키)
-    private func sponsorOverlay() -> String {
-        guard cols >= 50, gridRows >= 10 else {
-            return pos(3, 3) + ANSI.fg(220) + " " + L10n.sponsorEnlarge + " " + ANSI.reset
-        }
-        let innerW = min(52, cols - 8)
-        let lines: [(text: String, color: UInt8)] = [
-            (" " + L10n.sponsorThanks1, 252),
-            (" " + L10n.sponsorThanks2, 252),
-            ("", 252),
-            (" \u{2615}  " + Support.display, 45),
-            ("", 252),
-            (" " + L10n.sponsorOpenHint, 245),
-        ]
-        let startRow = 4
-        let startCol = max(2, (cols - innerW - 2) / 2 + 1)
-        let title = L10n.sponsorTitle
-        var out = pos(startRow, startCol) + ANSI.fg(245) + "+-"
-            + ANSI.fg(219) + title
-            + ANSI.fg(245) + String(repeating: "-", count: max(0, innerW - displayWidth(title) - 1)) + "+"
-        var r = startRow + 1
-        for line in lines {
-            guard r < rows - 1 else { break }
-            out += pos(r, startCol) + ANSI.fg(245) + "|"
-                + ANSI.fg(line.color) + pad(line.text, to: innerW)
-                + ANSI.fg(245) + "|"
-            r += 1
-        }
-        out += pos(r, startCol) + ANSI.fg(245) + "+" + String(repeating: "-", count: innerW) + "+"
-        return out + ANSI.reset
-    }
-
-    /// 라운지 설치 QR. 다른 패널과 달리 +---+ 테두리를 두르지 않는다 —
-    /// QR은 사방 4모듈의 *밝은* 여백이 있어야 스캐너가 경계를 찾는데,
-    /// ASCII 테두리는 여백 노릇을 못 하고 오히려 코드를 침범한다.
-    ///
-    /// 그리드 셀이 아니라 오버레이로 그리는 이유: render()에서 오버레이는 그리드
-    /// 뒤에 붙으므로 dimmed()를 통째로 우회한다. 그리드에 넣었다면 밤에 명암이
-    /// 뭉개져 스캔이 안 되고, 셀마다 glow를 강제해야 했다.
-    private func loungeQROverlay() -> String {
-        guard let modules = qrModules, let qrCols = modules.first?.count else { return "" }
-        let qrRows = modules.count / 2 // 하프블록 한 줄 = 모듈 두 행
-
-        // 우측 하단. 행 0은 제목·달(cols/8)·여름 태양(오른쪽 어깨)이 이미 쓰고 있다.
-        // 아래에서부터 쌓지 않으면 모래와 바닥 테두리를 덮어 "자갈에 파묻힌 QR"이 된다.
-        let bottom = sandRow           // 1-based 터미널 행 = 그리드 sandRow-1 (모래 바로 위)
-        let top = bottom - qrRows + 1
-        let left = cols - qrCols - 2
-        // 캡션 한 줄(top-1)까지 자리가 나와야 하고, 물고기가 헤엄칠 여유도 남겨둔다.
-        // 코드가 작아지면서 좁은 창에도 들어가게 됐지만, 어항의 절반을 넘게 차지하면
-        // 수조가 아니라 QR을 전시하는 꼴이라 그때는 통째로 접는다.
-        let swimHeight = swimMaxRow - swimMinRow + 1
-        guard qrCols + 6 <= cols, top >= swimMinRow + 3, bottom < rows,
-              qrRows * 2 <= swimHeight else { return "" }
-
-        // 밝은 터미널이면 흰 카드를 깔지 않고 배경을 그대로 비춘다. 밝은 모듈이
-        // 터미널 배경색이 되므로 여전히 균일하고, 화면에서 차지하는 무게가 확 준다.
-        // 어두운 터미널·응답 없는 터미널은 흰 카드를 유지한다 — 검은 모듈을 어두운
-        // 배경에 그리면 대비가 사라지고, 반전 QR은 못 읽는 스캐너가 있다.
-        let seeThrough = terminalDark == false
-
-        let caption = L10n.loungeQRCaption
-        let capCol = max(1, left + (qrCols - displayWidth(caption)) / 2)
-        var out = pos(top - 1, capCol) + ANSI.fg(seeThrough ? 240 : 231) + caption
-
-        if seeThrough {
-            // 배경을 안 칠하니 색 지정이 앞에 한 번이면 끝난다 (프레임 바이트도 준다).
-            out += ANSI.bgDefault + ANSI.fg(16)
-            for r in 0..<qrRows {
-                out += pos(top + r, left)
-                for c in 0..<qrCols {
-                    let up = modules[r * 2][c], down = modules[r * 2 + 1][c]
-                    // 밝은 모듈은 공백 — 배경을 칠하지 않되 뒤의 수조는 지워진다.
-                    out.append(up && down ? "\u{2588}" : up ? "\u{2580}" : down ? "\u{2584}" : " ")
-                }
-            }
-        } else {
-            for r in 0..<qrRows {
-                out += pos(top + r, left)
-                var lastPair: (UInt8, UInt8)? = nil
-                for c in 0..<qrCols {
-                    // ▀ 는 전경색이 위쪽 절반, 배경색이 아래쪽 절반을 칠한다.
-                    // 터미널 셀이 대략 세로:가로 2:1이라 이 매핑에서 모듈이 정사각형이 된다.
-                    let pair: (UInt8, UInt8) = (modules[r * 2][c] ? 16 : 231,
-                                                modules[r * 2 + 1][c] ? 16 : 231)
-                    if pair != lastPair ?? (255, 255) {
-                        out += ANSI.fg(pair.0) + ANSI.bg(pair.1)
-                        lastPair = pair
-                    }
-                    out.append("\u{2580}")
-                }
-            }
-        }
-        // 배경색을 남긴 채 끝내면 다음 프레임 그리드에 색 줄무늬로 번진다
-        // (render()는 전경색만 디핑하고 매 프레임 clear를 하지 않는다).
-        return out + ANSI.reset
+        return .box(Panel(startRow: 3,
+                          startCol: max(2, (cols - innerW - 2) / 2 + 1),
+                          innerWidth: innerW,
+                          title: L10n.mailboxTitle(mailbox.count), titleColor: 213,
+                          lines: lines.map { PanelLine($0.text, $0.color) }))
     }
 }
