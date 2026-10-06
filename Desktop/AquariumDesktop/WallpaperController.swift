@@ -261,6 +261,8 @@ final class WallpaperController: ObservableObject {
 
     /// 폴더를 못 열었다(바탕화면 접근 거절 등) → 조용히 끈다. 메뉴로 켠 경우에만 방법을 알려 준다.
     private func screenshotFolderDenied() {
+        // 설정 끄기와 감시 중단을 같이 — 안 그러면 재확인 타이머가 매분 실패와 안내를 되풀이한다.
+        screenshots.stop()
         Settings.screenshotFood = false
         screenshotFood = false
         guard screenshotToggledByUser else { return }

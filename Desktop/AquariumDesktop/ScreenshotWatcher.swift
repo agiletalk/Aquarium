@@ -22,16 +22,23 @@ final class ScreenshotWatcher {
 
     func start() {
         queue.async { [weak self] in
-            self?.watch(Self.screenshotFolder())
+            guard let self else { return }
+            // 다시 켤 때 이전 타이머가 남지 않게 — start는 몇 번 불러도 감시 하나.
+            self.recheck?.cancel()
+            self.recheck = nil
+            self.watch(Self.screenshotFolder())
             // 저장 위치는 실행 중에도 바뀔 수 있다(⌘⇧5 옵션) — 가끔 다시 읽는다.
-            let timer = DispatchSource.makeTimerSource(queue: self?.queue)
+            // 폴더를 못 열었으면(folder == nil) 다시 시도하지 않는다 — 거절된 권한은 다시 묻지 않고
+            // 실패만 반복한다. 컨트롤러가 onDenied에서 stop()을 부른다.
+            let timer = DispatchSource.makeTimerSource(queue: self.queue)
             timer.schedule(deadline: .now() + 60, repeating: 60)
             timer.setEventHandler { [weak self] in
+                guard let self, self.folder != nil else { return }
                 let current = Self.screenshotFolder()
-                if current != self?.folder { self?.watch(current) }
+                if current != self.folder { self.watch(current) }
             }
             timer.resume()
-            self?.recheck = timer
+            self.recheck = timer
         }
     }
 

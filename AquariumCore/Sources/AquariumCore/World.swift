@@ -345,11 +345,18 @@ public final class World {
     }
 
     /// 계절 판정용 오늘 — AQUARIUM_TODAY가 있으면 그 날짜.
+    /// 날짜는 분 단위로만 바뀌어도 충분하다 — 매 tick 달력을 여러 번 부르지 않게 60초 캐시한다.
     private var today: MonthDay {
         if let fixed = config.debugToday { return fixed }
+        if let cached = cachedToday, now - cachedTodayAt < 60 { return cached }
         let c = Calendar.current.dateComponents([.month, .day], from: Date())
-        return MonthDay(month: c.month ?? 1, day: c.day ?? 1)
+        let fresh = MonthDay(month: c.month ?? 1, day: c.day ?? 1)
+        cachedToday = fresh
+        cachedTodayAt = now
+        return fresh
     }
+    private var cachedToday: MonthDay?
+    private var cachedTodayAt: Double = 0
 
     private var now: Double { ProcessInfo.processInfo.systemUptime }
 
@@ -1900,15 +1907,17 @@ public final class World {
                 }
             }
         } else if isAutumn {
+            var lastRimLeaf = -10 // 바로 옆 열 잎과 겹쳐 `\^\_/`로 뭉개지지 않게
             // 가을 낮: 수면 위로 바람에 실린 낙엽이 이따금 흘러간다 (밤엔 별/달 — 계절과 조명은 직교)
             for c in 1..<(cols - 1) {
                 if cols > title.count + 4, c >= titleStart - 1, c <= titleStart + title.count { continue }
                 let gust = sin(Double(c) * 0.23 - now * 0.9) * sin(Double(c) * 0.051 + now * 0.3)
                 let h = Int((UInt(c) &* 40_503) % 12)
                 // 돌풍 구간 안에서도 띄엄띄엄 — 잎(3칸)이 한 덩어리로 뭉치지 않게. 수면이라 윗줄만 보인다.
-                guard gust > 0.85, h < 2, c >= 2, c <= cols - 3,
+                guard gust > 0.85, h < 2, c >= 2, c <= cols - 3, c - lastRimLeaf >= 4,
                       !(cols > title.count + 4 && c + 1 >= titleStart - 1 && c - 1 <= titleStart + title.count)
                 else { continue }
+                lastRimLeaf = c
                 let ginkgo = h == 1
                 for (i, ch) in (ginkgo ? Self.ginkgoArt : Self.mapleArt)[0].enumerated() {
                     grid[0][c - 1 + i] = Cell(ch: ch, color: ginkgo ? 220 : 166, glow: true)
@@ -1974,8 +1983,8 @@ public final class World {
     }
 
     private func drawJellyfish(_ grid: inout [[Cell]], _ now: Double) {
+        let halloween = isHalloween
         for j in jellyfish {
-            let halloween = isHalloween
             let art: [[Character]]
             if halloween {
                 // 할로윈: 갓이 잭오랜턴 얼굴이 된다
